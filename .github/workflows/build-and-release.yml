@@ -1,0 +1,94 @@
+name: Build Report PDF
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - report/**
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub Release"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+concurrency:
+  group: report-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Run highlight script with uv
+        working-directory: report/highlight/script
+        run: uv run main.py
+
+      - name: Setup Fontist
+        uses: fontist/setup-fontist@v2
+
+      - name: Install fonts with Fontist
+        run: fontist install "Times New Roman" "Source Han Serif SC" "Noto Serif CJK SC" "Noto Sans CJK SC" "IBM Plex Mono" "SimHei" --newest -a -h
+
+      - name: Setup Typst
+        uses: typst-community/setup-typst@v4
+        with:
+          cache-dependency-path: report/dependency.typ
+
+      - name: Compile Typst document
+        run: typst compile report/main.typ report/main.pdf --font-path ~/.fontist/fonts
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-main-pdf
+          path: report/main.pdf
+          if-no-files-found: error
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true' }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: report-main-pdf
+          path: .
+
+      - name: Generate semantic release version
+        id: version
+        run: echo "value=v$(date -u +'%Y.%m.%d-%H%M%S')" >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.value }}
+          name: Release ${{ steps.version.outputs.value }}
+          body: |
+            ## Build Information
+
+            This report was manually built and released by GitHub Actions.
+
+            - **Version**: `${{ steps.version.outputs.value }}`
+            - **Commit Hash**: `${{ github.sha }}`
+          files: main.pdf
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
