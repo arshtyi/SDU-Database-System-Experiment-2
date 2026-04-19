@@ -120,6 +120,10 @@ void Value::set_data(char *data, int length)
       value_.int_value_ = *(int *)data;
       length_           = length;
     } break;
+    case AttrType::DATES: {
+      value_.int_value_ = *(int *)data;
+      length_           = length;
+    } break;
     case AttrType::FLOATS: {
       value_.float_value_ = *(float *)data;
       length_             = length;
@@ -138,6 +142,14 @@ void Value::set_int(int val)
 {
   reset();
   attr_type_        = AttrType::INTS;
+  value_.int_value_ = val;
+  length_           = sizeof(val);
+}
+
+void Value::set_date(int val)
+{
+  reset();
+  attr_type_        = AttrType::DATES;
   value_.int_value_ = val;
   length_           = sizeof(val);
 }
@@ -196,6 +208,9 @@ void Value::set_value(const Value &value)
   switch (value.attr_type_) {
     case AttrType::INTS: {
       set_int(value.get_int());
+    } break;
+    case AttrType::DATES: {
+      set_date(value.get_date());
     } break;
     case AttrType::FLOATS: {
       set_float(value.get_float());
@@ -261,6 +276,9 @@ int Value::get_int() const
     case AttrType::INTS: {
       return value_.int_value_;
     }
+    case AttrType::DATES: {
+      return value_.int_value_;
+    }
     case AttrType::FLOATS: {
       return (int)(value_.float_value_);
     }
@@ -275,6 +293,14 @@ int Value::get_int() const
   return 0;
 }
 
+int Value::get_date() const
+{
+  if (attr_type_ == AttrType::DATES) {
+    return value_.int_value_;
+  }
+  return get_int();
+}
+
 float Value::get_float() const
 {
   switch (attr_type_) {
@@ -287,6 +313,9 @@ float Value::get_float() const
       }
     } break;
     case AttrType::INTS: {
+      return float(value_.int_value_);
+    } break;
+    case AttrType::DATES: {
       return float(value_.int_value_);
     } break;
     case AttrType::FLOATS: {
@@ -333,6 +362,9 @@ bool Value::get_boolean() const
       }
     } break;
     case AttrType::INTS: {
+      return value_.int_value_ != 0;
+    } break;
+    case AttrType::DATES: {
       return value_.int_value_ != 0;
     } break;
     case AttrType::FLOATS: {
