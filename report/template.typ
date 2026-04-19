@@ -47,14 +47,13 @@
     set par(justify: true)
     show math.equation.where(block: true): it => block(width: 100%, align(center, it))
     set raw(syntaxes: "highlight/PowerShell.sublime-syntax")
-    show: zebraw
-    show link: it => text(fill: blue.darken(20%), underline(evade: false, it))
+    show link: it => text(fill: blue.darken(20%), style: "italic", underline(evade: false, it))
     // show link: it => text(fill: blue.darken(20%), underline(evade: true, it)) // https://typst.app/docs/reference/text/underline/#parameters-evade
     set list(indent: 6pt)
     set enum(
         indent: 6pt,
         numbering: numbly(
-            n => emph(strong(numbering("a.", n))),
+            n => emph(strong(numbering("1.", n))),
         ),
     )
     counter(page).update(1)
@@ -70,7 +69,6 @@
     show heading: set block(spacing: 1em)
     show heading: it => text(size: 12pt, it)
     set text(size: 12pt)
-    set par(first-line-indent: (amount: 2em, all: true))
 
     [
         #set par(justify: true)
