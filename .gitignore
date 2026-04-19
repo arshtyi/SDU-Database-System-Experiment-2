@@ -1,2 +1,5 @@
 *.pdf
+*.pptx
+*.sublime-syntax
+
 .venv/
