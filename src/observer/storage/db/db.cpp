@@ -176,6 +176,70 @@ RC Db::create_table(const char *table_name, span<const AttrInfoSqlNode> attribut
   return RC::SUCCESS;
 }
 
+RC Db::drop_table(const char *table_name)
+{
+  if (common::is_blank(table_name)) {
+    LOG_WARN("invalid argument while dropping table. table_name=%p", table_name);
+    return RC::INVALID_ARGUMENT;
+  }
+
+  auto iter = opened_tables_.find(table_name);
+  if (iter == opened_tables_.end()) {
+    LOG_WARN("no such table while dropping table. db=%s, table=%s", name_.c_str(), table_name);
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+
+  Table *table = iter->second;
+  const TableMeta &table_meta = table->table_meta();
+
+  vector<string> index_files;
+  index_files.reserve(table_meta.index_num());
+  for (int i = 0; i < table_meta.index_num(); i++) {
+    const IndexMeta *index_meta = table_meta.index(i);
+    if (index_meta != nullptr) {
+      index_files.emplace_back(table_index_file(path_.c_str(), table_name, index_meta->name()));
+    }
+  }
+
+  const string table_meta_path = table_meta_file(path_.c_str(), table_name);
+  const string table_data_path = table_data_file(path_.c_str(), table_name);
+  const string table_lob_path  = table_lob_file(path_.c_str(), table_name);
+
+  opened_tables_.erase(iter);
+  delete table;
+  table = nullptr;
+
+  RC rc = RC::SUCCESS;
+  auto remove_file_if_exists = [table_name, &rc](const string &file_path) {
+    if (rc != RC::SUCCESS) {
+      return;
+    }
+    error_code ec;
+    filesystem::remove(file_path, ec);
+    if (ec) {
+      LOG_ERROR("failed to remove file while dropping table. table=%s, file=%s, error=%s",
+          table_name, file_path.c_str(), ec.message().c_str());
+      rc = RC::FILE_REMOVE;
+    }
+  };
+
+  remove_file_if_exists(table_meta_path);
+  remove_file_if_exists(table_data_path);
+  remove_file_if_exists(table_lob_path);
+  for (const string &index_file : index_files) {
+    remove_file_if_exists(index_file);
+  }
+
+  if (OB_FAIL(rc)) {
+    LOG_ERROR("failed to drop table due to file remove failed. db=%s, table=%s, rc=%s",
+        name_.c_str(), table_name, strrc(rc));
+    return rc;
+  }
+
+  LOG_INFO("drop table success. db=%s, table=%s", name_.c_str(), table_name);
+  return RC::SUCCESS;
+}
+
 Table *Db::find_table(const char *table_name) const
 {
   unordered_map<string, Table *>::const_iterator iter = opened_tables_.find(table_name);

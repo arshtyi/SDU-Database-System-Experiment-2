@@ -1,11 +1,4 @@
-# Exp1
-
-```bash
-git clone https://github.com/oceanbase/miniob.git
-rm -rf miniob/.git
-cp -r miniob/* ./
-rm -rf miniob
-```
+# Exp2
 
 # MiniOB 介绍
 
