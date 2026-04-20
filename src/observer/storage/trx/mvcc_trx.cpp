@@ -172,6 +172,29 @@ RC MvccTrx::delete_record(Table *table, Record &record)
   return RC::SUCCESS;
 }
 
+RC MvccTrx::update_record(Table *table, Record &old_record, Record &new_record)
+{
+  RC update_result = RC::SUCCESS;
+  RC rc = table->visit_record(old_record.rid(), [this, table, &update_result](Record &inplace_record) -> bool {
+    update_result = this->visit_record(table, inplace_record, ReadWriteMode::READ_WRITE);
+    return false;
+  });
+
+  if (OB_FAIL(rc)) {
+    LOG_WARN("failed to check record visibility before update. rid=%s, rc=%s",
+             old_record.rid().to_string().c_str(),
+             strrc(rc));
+    return rc;
+  }
+
+  if (OB_FAIL(update_result)) {
+    LOG_TRACE("record is not visible for update. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(update_result));
+    return update_result;
+  }
+
+  return table->update_record_with_trx(old_record, new_record, this);
+}
+
 RC MvccTrx::visit_record(Table *table, Record &record, ReadWriteMode mode)
 {
   Field begin_field;

@@ -103,6 +103,64 @@ RC HeapTableEngine::delete_record(const Record &record)
   return rc;
 }
 
+RC HeapTableEngine::update_record_with_trx(const Record &old_record, const Record &new_record, Trx *trx)
+{
+  (void)trx;
+
+  if (old_record.rid() != new_record.rid()) {
+    LOG_WARN("old rid and new rid mismatch. old=%s, new=%s",
+             old_record.rid().to_string().c_str(),
+             new_record.rid().to_string().c_str());
+    return RC::INVALID_ARGUMENT;
+  }
+
+  RC rc = delete_entry_of_indexes(old_record.data(), old_record.rid(), true /*error_on_not_exists*/);
+  if (OB_FAIL(rc)) {
+    LOG_WARN("failed to delete old index entries while updating record. rid=%s, rc=%s",
+             old_record.rid().to_string().c_str(),
+             strrc(rc));
+    return rc;
+  }
+
+  rc = insert_entry_of_indexes(new_record.data(), new_record.rid());
+  if (OB_FAIL(rc)) {
+    LOG_WARN("failed to insert new index entries while updating record. rid=%s, rc=%s",
+             new_record.rid().to_string().c_str(),
+             strrc(rc));
+    RC rc2 = insert_entry_of_indexes(old_record.data(), old_record.rid());
+    if (OB_FAIL(rc2)) {
+      LOG_PANIC("failed to rollback old index entries while updating record. rid=%s, rc=%s",
+                old_record.rid().to_string().c_str(),
+                strrc(rc2));
+    }
+    return rc;
+  }
+
+  rc = record_handler_->visit_record(new_record.rid(), [&new_record](Record &record) -> bool {
+    record = new_record;
+    return true;
+  });
+  if (OB_FAIL(rc)) {
+    LOG_WARN("failed to update record data. rid=%s, rc=%s", new_record.rid().to_string().c_str(), strrc(rc));
+
+    RC rc2 = delete_entry_of_indexes(new_record.data(), new_record.rid(), false /*error_on_not_exists*/);
+    if (OB_FAIL(rc2)) {
+      LOG_PANIC("failed to rollback new index entries while updating record. rid=%s, rc=%s",
+                new_record.rid().to_string().c_str(),
+                strrc(rc2));
+    }
+    rc2 = insert_entry_of_indexes(old_record.data(), old_record.rid());
+    if (OB_FAIL(rc2)) {
+      LOG_PANIC("failed to rollback old index entries while updating record. rid=%s, rc=%s",
+                old_record.rid().to_string().c_str(),
+                strrc(rc2));
+    }
+    return rc;
+  }
+
+  return RC::SUCCESS;
+}
+
 RC HeapTableEngine::get_record_scanner(RecordScanner *&scanner, Trx *trx, ReadWriteMode mode)
 {
   scanner = new HeapRecordScanner(table_, *data_buffer_pool_, trx, db_->log_handler(), mode, nullptr);
