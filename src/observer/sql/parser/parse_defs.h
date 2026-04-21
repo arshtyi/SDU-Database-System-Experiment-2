@@ -76,6 +76,16 @@ struct ConditionSqlNode
 };
 
 /**
+ * @brief 描述 from 子句中的 join 关系
+ * @ingroup SQLParser
+ */
+struct JoinRelationSqlNode
+{
+  vector<string>           *relations  = nullptr;
+  vector<ConditionSqlNode> *conditions = nullptr;
+};
+
+/**
  * @brief 描述一个select语句
  * @ingroup SQLParser
  * @details 一个正常的select语句描述起来比这个要复杂很多，这里做了简化。
