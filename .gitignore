@@ -1,1 +1,5 @@
-text/
+*.pdf
+*.pptx
+*.sublime-syntax
+
+.venv/
