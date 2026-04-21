@@ -1417,3 +1417,321 @@
 #figure(image("asset/fig/3/judge_result/1.png"), caption: [实验3提测结果])<fig:exp3_judge_result_1>
 == 总结
 @exp3 主要实现了更新行数据功能,并且在此过程中熟悉了数据库系统中DML操作的相关知识,同时通过测试验证了功能的正确性.
+
+= Experiment 4 <exp4>
+基于@exp3.
+
+实验内容:
++ 实现多表连接查询功能,支持使用JOIN关键字连接多张表进行查询.
++ 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800010&subQuestionName=join-tables", "题目7").
+== 实现
+先实现`char`类型的强转换支持:
+#zebraw-jump(
+    header: [src/observer/common/type/char_type.cpp],
+    numbering: ((range(33, 41) + (60,)),),
+    ```cpp
+    case AttrType::INTS: {
+      result.set_int(val.get_int());
+      return RC::SUCCESS;
+    }
+    case AttrType::FLOATS: {
+      result.set_float(val.get_float());
+      return RC::SUCCESS;
+    }
+    if (type == AttrType::INTS || type == AttrType::FLOATS) { return 1; }
+    ```,
+)
+接着给出对from子句中join关系的描述支持:
+#zebraw-jump(
+    header: [src/observer/sql/parser/parse_defs.h],
+    numbering-offset: 77,
+    ```cpp
+    /**
+     * @brief 描述 from 子句中的 join 关系
+     * @ingroup SQLParser
+     */
+    struct JoinRelationSqlNode
+    {
+      vector<string>           *relations  = nullptr;
+      vector<ConditionSqlNode> *conditions = nullptr;
+    };
+    ```,
+)
+最后修改词法分析器和语法分析器支持JOIN语句:
+#zebraw-jump(
+    header: [src/observer/sql/parser/lex_sql.l],
+    numbering-offset: 94,
+    ```lex
+    INNER                                   RETURN_TOKEN(INNER);
+    JOIN                                    RETURN_TOKEN(JOIN);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/parser/yacc_sql.y],
+    numbering: (
+        (
+            range(103, 105) + (137, 154) + range(182, 185) + range(495, 695)
+        ),
+    ),
+    ```yacc
+    INNER
+    JOIN
+    JoinRelationSqlNode *                      join_relation;
+    %destructor { delete $$; } <join_relation>
+    %type <join_relation>       from_clause
+    %type <join_relation>       join_list
+    %type <join_relation>       join_item
+    SELECT expression_list FROM from_clause where group_by
+    {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      if ($2 != nullptr) {
+        $$->selection.expressions.swap(*$2);
+        delete $2;
+      }
+      if ($4 != nullptr && $4->relations != nullptr) {
+        $$->selection.relations.swap(*$4->relations);
+        delete $4->relations;
+        $4->relations = nullptr;
+      }
+      if ($4 != nullptr && $4->conditions != nullptr) {
+        $$->selection.conditions.swap(*$4->conditions);
+        delete $4->conditions;
+        $4->conditions = nullptr;
+      }
+      if ($4 != nullptr) {
+        delete $4;
+      }
+      if ($5 != nullptr) {
+        if ($$->selection.conditions.empty()) {
+          $$->selection.conditions.swap(*$5);
+        } else {
+          $$->selection.conditions.insert($$->selection.conditions.end(), $5->begin(), $5->end());
+        }
+        delete $5;
+      }
+      if ($6 != nullptr) {
+        $$->selection.group_by.swap(*$6);
+        delete $6;
+      }
+    }
+    ;
+    calc_stmt:
+        CALC expression_list
+        {
+        $$ = new ParsedSqlNode(SCF_CALC);
+        $$->calc.expressions.swap(*$2);
+        delete $2;
+        }
+        ;
+    expression_list:
+        expression
+        {
+        $$ = new vector<unique_ptr<Expression>>;
+        $$->emplace_back($1);
+        }
+        | expression COMMA expression_list
+        {
+        if ($3 != nullptr) {
+            $$ = $3;
+        } else {
+            $$ = new vector<unique_ptr<Expression>>;
+        }
+        $$->emplace($$->begin(), $1);
+        }
+        ;
+    expression:
+        expression '+' expression {
+        $$ = create_arithmetic_expression(ArithmeticExpr::Type::ADD, $1, $3, sql_string, &@$);
+        }
+        | expression '-' expression {
+        $$ = create_arithmetic_expression(ArithmeticExpr::Type::SUB, $1, $3, sql_string, &@$);
+        }
+        | expression '*' expression {
+        $$ = create_arithmetic_expression(ArithmeticExpr::Type::MUL, $1, $3, sql_string, &@$);
+        }
+        | expression '/' expression {
+        $$ = create_arithmetic_expression(ArithmeticExpr::Type::DIV, $1, $3, sql_string, &@$);
+        }
+        | LBRACE expression RBRACE {
+        $$ = $2;
+        $$->set_name(token_name(sql_string, &@$));
+        }
+        | '-' expression %prec UMINUS {
+        $$ = create_arithmetic_expression(ArithmeticExpr::Type::NEGATIVE, $2, nullptr, sql_string, &@$);
+        }
+        | '*' {
+        $$ = new StarExpr();
+        }
+        | value {
+        $$ = new ValueExpr(*$1);
+        $$->set_name(token_name(sql_string, &@$));
+        delete $1;
+        }
+        | rel_attr {
+        RelAttrSqlNode *node = $1;
+        $$ = new UnboundFieldExpr(node->relation_name, node->attribute_name);
+        $$->set_name(token_name(sql_string, &@$));
+        delete $1;
+        }
+        | aggregate_expression {
+        $$ = $1;
+        }
+        ;
+    aggregate_expression:
+        ID LBRACE expression RBRACE {
+        $$ = create_aggregate_expression($1, $3, sql_string, &@$);
+        }
+        ;
+    rel_attr:
+        ID {
+        $$ = new RelAttrSqlNode;
+        $$->attribute_name = $1;
+        }
+        | ID DOT ID {
+        $$ = new RelAttrSqlNode;
+        $$->relation_name  = $1;
+        $$->attribute_name = $3;
+        }
+        ;
+    relation:
+        ID {
+        $$ = $1;
+        }
+        ;
+    rel_list:
+        relation {
+        $$ = new vector<string>();
+        $$->push_back($1);
+        }
+        | relation COMMA rel_list {
+        if ($3 != nullptr) {
+            $$ = $3;
+        } else {
+            $$ = new vector<string>;
+        }
+
+        $$->insert($$->begin(), $1);
+        }
+        ;
+    from_clause:
+        rel_list
+        {
+        $$ = new JoinRelationSqlNode;
+        $$->relations = $1;
+        $$->conditions = nullptr;
+        }
+        | relation join_list
+        {
+        $$ = new JoinRelationSqlNode;
+        $$->relations = new vector<string>();
+        $$->relations->push_back($1);
+        if ($2 != nullptr && $2->relations != nullptr) {
+            $$->relations->insert($$->relations->end(), $2->relations->begin(), $2->relations->end());
+            delete $2->relations;
+            $2->relations = nullptr;
+        }
+        if ($2 != nullptr && $2->conditions != nullptr) {
+            $$->conditions = $2->conditions;
+            $2->conditions = nullptr;
+        } else {
+            $$->conditions = nullptr;
+        }
+        delete $2;
+        }
+        ;
+    join_list:
+        join_item
+        {
+        $$ = $1;
+        }
+        | join_item join_list
+        {
+        $$ = $1;
+        if ($2 != nullptr && $2->relations != nullptr) {
+            $$->relations->insert($$->relations->end(), $2->relations->begin(), $2->relations->end());
+            delete $2->relations;
+            $2->relations = nullptr;
+        }
+        if ($2 != nullptr && $2->conditions != nullptr) {
+            if ($$->conditions == nullptr) {
+            $$->conditions = $2->conditions;
+            $2->conditions = nullptr;
+            } else {
+            $$->conditions->insert($$->conditions->end(), $2->conditions->begin(), $2->conditions->end());
+            delete $2->conditions;
+            $2->conditions = nullptr;
+            }
+        }
+        delete $2;
+        }
+        ;
+    join_item:
+        INNER JOIN relation ON condition_list
+        {
+        $$ = new JoinRelationSqlNode;
+        $$->relations = new vector<string>();
+        $$->relations->push_back($3);
+        $$->conditions = $5;
+        }
+        | JOIN relation ON condition_list
+        {
+        $$ = new JoinRelationSqlNode;
+        $$->relations = new vector<string>();
+        $$->relations->push_back($2);
+        $$->conditions = $4;
+        }
+        ;
+    ```,
+)
+== Build
+编译配置同@exp1, 直接运行CMake: Build即可:
+#figure(image("asset/fig/4/build_result/1.png"), caption: [实验4构建结果])<fig:exp4_build_result_1>
+接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+== Test
+使用下述命令测试:
+#zebraw-jump(
+    ```sql
+    CREATE TABLE join_table_1(id int, name char);
+    CREATE TABLE join_table_2(id int, num int);
+    CREATE TABLE join_table_3(id int, num2 int);
+    create table join_table_empty_1(id int, num_empty_1 int);
+    create table join_table_empty_2(id int, num_empty_2 int);
+    INSERT INTO join_table_1 VALUES (1, 'a');
+    INSERT INTO join_table_1 VALUES (2, 'b');
+    INSERT INTO join_table_1 VALUES (3, 'c');
+    INSERT INTO join_table_2 VALUES (1, 2);
+    INSERT INTO join_table_2 VALUES (2, 15);
+    INSERT INTO join_table_3 VALUES (1, 120);
+    INSERT INTO join_table_3 VALUES (3, 800);
+    Select * from join_table_1 inner join join_table_2 on join_table_1.name<join_table_2.id and join_table_1.id=join_table_2.id;
+    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id;
+    Select join_table_1.name from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id;
+    Select join_table_2.num from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id;
+    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id inner join join_table_3 on join_table_1.id=join_table_3.id;
+    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id and join_table_2.num>13 where join_table_1.name='b';
+    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id and join_table_2.num>13 where join_table_1.name='a';
+    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id and join_table_2.num>23 where join_table_1.name='b';
+    Select * from join_table_1 inner join join_table_empty_1 on join_table_1.name=join_table_2.num;
+    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.num and join_table_2.num>13 where join_table_1.name='a';
+    Select * from join_table_1 inner join join_table_2 on join_table_2.id>join_table_1.name;
+    select * from join_table_1 inner join join_table_empty_1 on join_table_1.id=join_table_empty_1.id;
+    select * from join_table_empty_1 inner join join_table_1 on join_table_empty_1.id=join_table_1.id;
+    select * from join_table_empty_1 inner join join_table_empty_2 on join_table_empty_1.id = join_table_empty_2.id;
+    select * from join_table_1 inner join join_table_2 on join_table_1.id = join_table_2.id inner join join_table_empty_1 on join_table_1.id=join_table_empty_1.id;
+    select * from join_table_empty_1 inner join join_table_1 on join_table_empty_1.id=join_table_1.id inner join join_table_2 on join_table_1.id=join_table_2.id;
+    create table join_table_large_1(id int, num1 int);
+    create table join_table_large_2(id int, num2 int);
+    create table join_table_large_3(id int, num3 int);
+    create table join_table_large_4(id int, num4 int);
+    create table join_table_large_5(id int, num5 int);
+    create table join_table_large_6(id int, num6 int);
+    select * from join_table_large_1 inner join join_table_large_2 on join_table_large_1.id=join_table_large_2.id inner join join_table_large_3 on join_table_large_1.id=join_table_large_3.id inner join join_table_large_4 on join_table_large_3.id=join_table_large_4.id inner join join_table_large_5 on 1=1 inner join join_table_large_6 on join_table_large_5.id=join_table_large_6.id where join_table_large_3.num3 <10 and join_table_large_5.num5>90;
+    ```,
+)
+#figure(image("asset/fig/4/run_result/1.png"), caption: [实验4测试结果])<fig:exp4_run_result_1>
+@fig:exp4_run_result_1 证明了JOIN功能的正确性:成功创建了多张表并插入了数据,多条包含JOIN的查询语句正确执行并返回了预期结果,同时不合法的JOIN语句被正确拒绝.
+== 提测
+推送至仓库并提测:
+#figure(image("asset/fig/4/judge_result/1.png"), caption: [实验4提测结果])<fig:exp4_judge_result_1>
+== 总结
+@exp4 主要实现了基于JOIN的多表查询功能,并且在此过程中熟悉了数据库系统中多表查询的相关知识,同时通过测试验证了功能的正确性.
