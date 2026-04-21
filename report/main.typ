@@ -940,3 +940,480 @@
 #figure(image("asset/fig/2/judge_result/2.png"), caption: [实验2-2提测结果])<fig:exp2_judge_result_2>
 == 总结
 @exp2 主要实现了删除表功能和日期类型,并且在此过程中熟悉了数据库系统中DDL操作和数据类型实现的相关知识,同时通过测试验证了功能的正确性.
+
+= Experiment 3 <exp3>
+基于@exp2.
+
+实验内容:
++ 实现更新行数据功能,支持根据条件更新表中的数据.
++ 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800007&subQuestionName=update", "题目4").
+== 实现
+完成语句上的支持:
+#zebraw-jump(
+    header: [src/observer/sql/stmt/update_stmt.h],
+    ```cpp
+    #pragma once
+    #include "common/sys/rc.h"
+    #include "sql/stmt/stmt.h"
+    class Table;
+    class FieldMeta;
+    class FilterStmt;
+    /**
+     * @brief 更新语句
+     * @ingroup Statement
+     */
+    class UpdateStmt : public Stmt
+    {
+    public:
+      UpdateStmt(Table *table, const FieldMeta *field, const Value &value, FilterStmt *filter_stmt);
+      ~UpdateStmt() override;
+    public:
+      static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
+    public:
+      StmtType type() const override { return StmtType::UPDATE; }
+      Table           *table() const { return table_; }
+      const FieldMeta *field() const { return field_; }
+      const Value     &value() const { return value_; }
+      FilterStmt      *filter_stmt() const { return filter_stmt_; }
+    private:
+      Table           *table_ = nullptr;
+      const FieldMeta *field_ = nullptr;
+      Value            value_;
+      FilterStmt      *filter_stmt_ = nullptr;
+    };
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/stmt/update_stmt.cpp],
+    ```cpp
+    #include "sql/stmt/update_stmt.h"
+    #include "common/log/log.h"
+    #include "sql/stmt/filter_stmt.h"
+    #include "storage/db/db.h"
+    #include "storage/table/table.h"
+    UpdateStmt::UpdateStmt(Table *table, const FieldMeta *field, const Value &value, FilterStmt *filter_stmt): table_(table), field_(field), value_(value), filter_stmt_(filter_stmt){}
+    UpdateStmt::~UpdateStmt()
+    {
+      if (nullptr != filter_stmt_) {
+        delete filter_stmt_;
+        filter_stmt_ = nullptr;
+      }
+    }
+    RC UpdateStmt::create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt)
+    {
+      stmt = nullptr;
+      const char *table_name = update_sql.relation_name.c_str();
+      if (nullptr == db || nullptr == table_name) {
+        LOG_WARN("invalid argument. db=%p, table_name=%p", db, table_name);
+        return RC::INVALID_ARGUMENT;
+      }
+      Table *table = db->find_table(table_name);
+      if (nullptr == table) {
+        LOG_WARN("no such table. db=%s, table_name=%s", db->name(), table_name);
+        return RC::SCHEMA_TABLE_NOT_EXIST;
+      }
+      const TableMeta &table_meta = table->table_meta();
+      const FieldMeta *field_meta = table_meta.field(update_sql.attribute_name.c_str());
+      if (nullptr == field_meta || !field_meta->visible()) {
+        LOG_WARN("no such field in table. table=%s, field=%s", table->name(), update_sql.attribute_name.c_str());
+        return RC::SCHEMA_FIELD_NOT_EXIST;
+      }
+      Value value = update_sql.value;
+      if (value.attr_type() != field_meta->type()) {
+        Value casted_value;
+        RC    rc = Value::cast_to(value, field_meta->type(), casted_value);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to cast update value. value_type=%s, field_type=%s, rc=%s",
+                   attr_type_to_string(value.attr_type()),
+                   attr_type_to_string(field_meta->type()),
+                   strrc(rc));
+          return rc;
+        }
+        value = std::move(casted_value);
+      }
+      unordered_map<string, Table *> table_map;
+      table_map.insert(pair<string, Table *>(update_sql.relation_name, table));
+      FilterStmt *filter_stmt = nullptr;
+      RC          rc          = FilterStmt::create(db, table, &table_map, update_sql.conditions.data(), static_cast<int>(update_sql.conditions.size()), filter_stmt);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to create filter statement. rc=%s", strrc(rc));
+        return rc;
+      }
+      stmt = new UpdateStmt(table, field_meta, value, filter_stmt);
+      return RC::SUCCESS;
+    }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/stmt/stmt.cpp],
+    numbering: (((34,) + range(61, 64)),),
+    ```cpp
+    #include "sql/stmt/update_stmt.h"
+    case SCF_UPDATE: {
+      return UpdateStmt::create(db, sql_node.update, stmt);
+    }
+    ```,
+)
+接着增加逻辑算子和物理算子支持:
+#zebraw-jump(
+    header: [src/observer/sql/operator/update_logical_operator.h],
+    ```cpp
+    #pragma once
+    #include "common/value.h"
+    #include "sql/operator/logical_operator.h"
+    class Table;
+    class FieldMeta;
+    /**
+     * @brief 逻辑算子，用于执行update语句
+     * @ingroup LogicalOperator
+     */
+    class UpdateLogicalOperator : public LogicalOperator
+    {
+    public:
+      UpdateLogicalOperator(Table *table, const FieldMeta *field, const Value &value);
+      virtual ~UpdateLogicalOperator() = default;
+      LogicalOperatorType type() const override { return LogicalOperatorType::UPDATE; }
+      OpType              get_op_type() const override { return OpType::LOGICALUPDATE; }
+      Table           *table() const { return table_; }
+      const FieldMeta *field() const { return field_; }
+      const Value     &value() const { return value_; }
+    private:
+      Table           *table_ = nullptr;
+      const FieldMeta *field_ = nullptr;
+      Value            value_;
+    };
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/operator/update_logical_operator.cpp],
+    ```cpp
+    #include "sql/operator/update_logical_operator.h"
+    UpdateLogicalOperator::UpdateLogicalOperator(Table *table, const FieldMeta *field, const Value &value): table_(table), field_(field), value_(value){}
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/operator/update_physical_operator.h],
+    ```cpp
+    #pragma once
+    #include "common/value.h"
+    #include "sql/operator/physical_operator.h"
+    class Table;
+    class FieldMeta;
+    class Trx;
+    /**
+     * @brief 物理算子，更新
+     * @ingroup PhysicalOperator
+     */
+    class UpdatePhysicalOperator : public PhysicalOperator
+    {
+    public:
+      UpdatePhysicalOperator(Table *table, const FieldMeta *field, const Value &value): table_(table), field_(field), value_(value){}
+      virtual ~UpdatePhysicalOperator() = default;
+      PhysicalOperatorType type() const override { return PhysicalOperatorType::UPDATE; }
+      OpType               get_op_type() const override { return OpType::UPDATE; }
+      RC open(Trx *trx) override;
+      RC next() override;
+      RC close() override;
+      Tuple *current_tuple() override { return nullptr; }
+    private:
+      RC apply_value(Record &record);
+    private:
+      Table           *table_ = nullptr;
+      const FieldMeta *field_ = nullptr;
+      Value            value_;
+      Trx             *trx_ = nullptr;
+      vector<Record>   records_;
+    };
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/operator/update_physical_operator.cpp],
+    ```cpp
+    #include "sql/operator/update_physical_operator.h"
+    #include <cstring>
+    #include "common/log/log.h"
+    #include "sql/expr/tuple.h"
+    #include "storage/field/field_meta.h"
+    #include "storage/table/table.h"
+    #include "storage/trx/trx.h"
+    RC UpdatePhysicalOperator::open(Trx *trx)
+    {
+      if (children_.empty()) {
+        return RC::SUCCESS;
+      }
+      unique_ptr<PhysicalOperator> &child = children_[0];
+      RC rc = child->open(trx);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to open child operator. rc=%s", strrc(rc));
+        return rc;
+      }
+      trx_ = trx;
+      while (OB_SUCC(rc = child->next())) {
+        Tuple *tuple = child->current_tuple();
+        if (nullptr == tuple) {
+          LOG_WARN("failed to get current tuple");
+          child->close();
+          return RC::INTERNAL;
+        }
+        RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
+        Record   &record    = row_tuple->record();
+        Record copied_record;
+        rc = copied_record.copy_data(record.data(), record.len());
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to copy record. rc=%s", strrc(rc));
+          child->close();
+          return rc;
+        }
+        copied_record.set_rid(record.rid());
+        records_.emplace_back(std::move(copied_record));
+      }
+      if (rc != RC::RECORD_EOF) {
+        LOG_WARN("failed to fetch record from child operator. rc=%s", strrc(rc));
+        child->close();
+        return rc;
+      }
+      child->close();
+      for (Record &old_record : records_) {
+        Record new_record;
+        rc = new_record.copy_data(old_record.data(), old_record.len());
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to copy old record. rc=%s", strrc(rc));
+          return rc;
+        }
+        new_record.set_rid(old_record.rid());
+        rc = apply_value(new_record);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to apply value to record. rc=%s", strrc(rc));
+          return rc;
+        }
+        rc = trx_->update_record(table_, old_record, new_record);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to update record by transaction. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(rc));
+          return rc;
+        }
+      }
+      return RC::SUCCESS;
+    }
+    RC UpdatePhysicalOperator::next() { return RC::RECORD_EOF; }
+    RC UpdatePhysicalOperator::close() { return RC::SUCCESS; }
+    RC UpdatePhysicalOperator::apply_value(Record &record)
+    {
+      if (nullptr == field_) {
+        LOG_WARN("invalid field meta");
+        return RC::INTERNAL;
+      }
+      const int field_offset = field_->offset();
+      const int field_len    = field_->len();
+      if (field_offset < 0 || field_offset + field_len > record.len()) {
+        LOG_WARN("invalid field offset/length. offset=%d, len=%d, record_len=%d", field_offset, field_len, record.len());
+        return RC::INVALID_ARGUMENT;
+      }
+      if (field_->type() == AttrType::CHARS) {
+        memset(record.data() + field_offset, 0, field_len);
+        int copy_len = field_len;
+        if (copy_len > value_.length()) {
+          copy_len = value_.length() + 1;
+        }
+        memcpy(record.data() + field_offset, value_.data(), copy_len);
+      } else {
+        memcpy(record.data() + field_offset, value_.data(), field_len);
+      }
+      return RC::SUCCESS;
+    }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/optimizer/logical_plan_generator.h],
+    numbering: ((27, 45),),
+    ```cpp
+    class UpdateStmt;
+    RC create_plan(UpdateStmt *update_stmt, unique_ptr<LogicalOperator> &logical_operator);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/optimizer/logical_plan_generator.cpp],
+    numbering: (((29, 38) + range(273, 295)),),
+    ```cpp
+    #include "sql/operator/update_logical_operator.h"
+    #include "sql/stmt/update_stmt.h"
+    RC LogicalPlanGenerator::create_plan(UpdateStmt *update_stmt, unique_ptr<LogicalOperator> &logical_operator)
+    {
+      Table                      *table       = update_stmt->table();
+      FilterStmt                 *filter_stmt = update_stmt->filter_stmt();
+      unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, ReadWriteMode::READ_WRITE));
+      unique_ptr<LogicalOperator> predicate_oper;
+      RC                          rc = create_plan(filter_stmt, predicate_oper);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to create filter plan for update. rc=%s", strrc(rc));
+        return rc;
+      }
+      unique_ptr<LogicalOperator> update_oper(
+          new UpdateLogicalOperator(table, update_stmt->field(), update_stmt->value()));
+      if (predicate_oper) {
+        predicate_oper->add_child(std::move(table_get_oper));
+        update_oper->add_child(std::move(predicate_oper));
+      } else {
+        update_oper->add_child(std::move(table_get_oper));
+      }
+      logical_operator = std::move(update_oper);
+      return RC::SUCCESS;
+    }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/optimizer/physical_plan_generator.h],
+    numbering: ((27, 54),),
+    ```cpp
+    class UpdateLogicalOperator;
+    RC create_plan(UpdateLogicalOperator &logical_oper, unique_ptr<PhysicalOperator> &oper, Session *session);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/optimizer/physical_plan_generator.cpp],
+    numbering: ((range(45, 47) + range(79, 82) + range(284, 301)),),
+    ```cpp
+    #include "sql/operator/update_logical_operator.h"
+    #include "sql/operator/update_physical_operator.h"
+    case LogicalOperatorType::UPDATE: {
+      return create_plan(static_cast<UpdateLogicalOperator &>(logical_operator), oper, session);
+    } break;
+    RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator &update_oper, unique_ptr<PhysicalOperator> &oper, Session *session)
+    {
+      vector<unique_ptr<LogicalOperator>> &child_opers = update_oper.children();
+      unique_ptr<PhysicalOperator> child_physical_oper;
+      RC rc = RC::SUCCESS;
+      if (!child_opers.empty()) {
+        LogicalOperator *child_oper = child_opers.front().get();
+        rc = create(*child_oper, child_physical_oper, session);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to create update child physical operator. rc=%s", strrc(rc));
+          return rc;
+        }
+      }
+      oper = unique_ptr<PhysicalOperator>( new UpdatePhysicalOperator(update_oper.table(), update_oper.field(), update_oper.value()));
+      if (child_physical_oper) { oper->add_child(std::move(child_physical_oper)); }
+      return RC::SUCCESS;
+    }
+    ```,
+)
+最后增加表和事务的更新接口支持:
+#zebraw-jump(
+    header: [src/observer/storage/table/heap_table_engine.h],
+    numbering-offset: 33,
+    ```cpp
+    RC update_record_with_trx(const Record &old_record, const Record &new_record, Trx *trx) override;
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/table/heap_table_engine.cpp],
+    numbering-offset: 105,
+    ```cpp
+    RC HeapTableEngine::update_record_with_trx(const Record &old_record, const Record &new_record, Trx *trx)
+    {
+      (void)trx;
+      if (old_record.rid() != new_record.rid()) {
+        LOG_WARN("old rid and new rid mismatch. old=%s, new=%s", old_record.rid().to_string().c_str(), new_record.rid().to_string().c_str());
+        return RC::INVALID_ARGUMENT;
+      }
+      RC rc = delete_entry_of_indexes(old_record.data(), old_record.rid(), true /*error_on_not_exists*/);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to delete old index entries while updating record. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(rc));
+        return rc;
+      }
+      rc = insert_entry_of_indexes(new_record.data(), new_record.rid());
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to insert new index entries while updating record. rid=%s, rc=%s", new_record.rid().to_string().c_str(), strrc(rc));
+        RC rc2 = insert_entry_of_indexes(old_record.data(), old_record.rid());
+        if (OB_FAIL(rc2)) { LOG_PANIC("failed to rollback old index entries while updating record. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(rc2)); }
+        return rc;
+      }
+      rc = record_handler_->visit_record(new_record.rid(), [&new_record](Record &record) -> bool { record = new_record; return true; });
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to update record data. rid=%s, rc=%s", new_record.rid().to_string().c_str(), strrc(rc));
+        RC rc2 = delete_entry_of_indexes(new_record.data(), new_record.rid(), false /*error_on_not_exists*/);
+        if (OB_FAIL(rc2)) { LOG_PANIC("failed to rollback new index entries while updating record. rid=%s, rc=%s", new_record.rid().to_string().c_str(), strrc(rc2)); }
+        rc2 = insert_entry_of_indexes(old_record.data(), old_record.rid());
+        if (OB_FAIL(rc2)) { LOG_PANIC("failed to rollback old index entries while updating record. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(rc2)); }
+        return rc;
+      }
+      return RC::SUCCESS;
+    }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/trx/mvcc_trx.h],
+    numbering-offset: 75,
+    ```cpp
+    RC update_record(Table *table, Record &old_record, Record &new_record) override;
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/trx/mvcc_trx.cpp],
+    numbering-offset: 174,
+    ```cpp
+    RC MvccTrx::update_record(Table *table, Record &old_record, Record &new_record)
+    {
+      RC update_result = RC::SUCCESS;
+      RC rc = table->visit_record(old_record.rid(), [this, table, &update_result](Record &inplace_record) -> bool {
+        update_result = this->visit_record(table, inplace_record, ReadWriteMode::READ_WRITE);
+        return false;
+      });
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to check record visibility before update. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(rc));
+        return rc;
+      }
+      if (OB_FAIL(update_result)) {
+        LOG_TRACE("record is not visible for update. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(update_result));
+        return update_result;
+      }
+      return table->update_record_with_trx(old_record, new_record, this);
+    }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/trx/vacuous_trx.h],
+    numbering-offset: 47,
+    ```cpp
+    RC update_record(Table *table, Record &old_record, Record &new_record) override;
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/trx/vacuous_trx.cpp],
+    numbering-offset: 36,
+    ```cpp
+    RC VacuousTrx::update_record(Table *table, Record &old_record, Record &new_record){ return table->update_record_with_trx(old_record, new_record, this); }
+    ```,
+)
+== Build
+编译配置同@exp1, 直接运行CMake: Build即可:
+#figure(image("asset/fig/3/build_reslut/1.png"), caption: [实验3构建结果])<fig:exp3_build_result_1>
+接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+== Test
+使用下述命令测试:
+#zebraw-jump(
+    ```sql
+    CREATE TABLE Update_table_1(id int, t_name char, col1 int, col2 int);
+    CREATE INDEX index_id on Update_table_1(id);
+    INSERT INTO Update_table_1 VALUES (1,'N1',1,1);
+    INSERT INTO Update_table_1 VALUES (2,'N2',1,1);
+    INSERT INTO Update_table_1 VALUES (3,'N3',2,1);
+    UPDATE Update_table_1 SET t_name='N01' WHERE id=1;
+    UPDATE Update_table_1 SET col2=0 WHERE col1=1;
+    UPDATE Update_table_1 SET id=4 WHERE t_name='N3';
+    UPDATE Update_table_1 SET col1=0;
+    UPDATE Update_table_1 SET t_name='N02' WHERE col1=0 AND col2=0;
+    UPDATE Update_table_2 SET t_name='N01' WHERE id=1;
+    UPDATE Update_table_1 SET t_name_false='N01' WHERE id=1;
+    UPDATE Update_table_1 SET t_name='N01' WHERE id_false=1;
+    UPDATE Update_table_1 SET t_name='N01' WHERE id=100;
+    UPDATE Update_table_1 SET col1='N01' WHERE id=1;
+    SELECT * FROM Update_table_1;
+    ```,
+)
+#figure(image("asset/fig/3/run_result/1.png"), caption: [实验3测试结果])<fig:exp3_run_result_1>
+@fig:exp3_run_result_1 证明了更新功能的正确性:成功创建了表Update_table_1并插入了数据,多条更新语句正确执行并修改了数据,同时不合法的更新被正确拒绝.
+== 提测
+推送至仓库并提测:
+#figure(image("asset/fig/3/judge_result/1.png"), caption: [实验3提测结果])<fig:exp3_judge_result_1>
+== 总结
+@exp3 主要实现了更新行数据功能,并且在此过程中熟悉了数据库系统中DML操作的相关知识,同时通过测试验证了功能的正确性.
