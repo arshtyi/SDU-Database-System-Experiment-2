@@ -17,13 +17,19 @@
     main: "IBM Plex Serif",
     mono: "Fira Code",
     cjk: "Noto Serif CJK SC",
-    math: "New Computer Modern Math",
+    // math: "New Computer Modern Math",
 )
-#let _highlight-colors = (
-    rgb("#dafbe1"),
-    rgb("#ddf4ff"),
-    rgb("#fbefff"),
-    rgb("#fff8c5"),
+
+// Color palette
+#let palette = (
+    link: rgb("#1D4F91"),
+    ref: rgb("#6A3FB5"),
+    highlight: (
+        rgb("#DCEEFF"), // blue
+        rgb("#DFF3F0"), // teal
+        rgb("#ECE7FF"), // violet
+        rgb("#EAF4D8"), // olive
+    ),
 )
 
 // Set up styles
@@ -43,6 +49,7 @@
         set text(9pt)
         counter(page).display("1 / 1", both: true)
     },
+    header: counter(footnote).update(0),
 )
 #set heading(
     numbering: numbly(
@@ -56,7 +63,9 @@
     set align(center)
     show h.where(amount: .3em): none
     text(size: 15pt, it)
-} else { text(size: 13pt, it) }
+} else {
+    text(size: 13pt, it)
+}
 #show heading.where(level: 1): set heading(supplement: [实验])
 #set figure(numbering: dependent-numbering("1 - 1"))
 #show heading: reset-counter(counter(figure.where(kind: image)))
@@ -64,17 +73,21 @@
 #set par(justify: true, first-line-indent: (amount: 2em, all: true))
 #set raw(syntaxes: "highlight/PowerShell.sublime-syntax")
 #show raw: set text(font: ((name: font.mono, covers: "latin-in-cjk"), font.cjk))
-#show link: it => text(fill: blue.darken(30%), style: "italic", underline(evade: false, it))
+#show link: it => text(fill: palette.link, style: "italic", underline(evade: false, it))
+#show ref: set text(fill: palette.ref)
+#let cite = cite.with(style: "ieee")
+#set footnote(numbering: "[1]")
 #set list(indent: 6pt, marker: sym.bullet.tri)
 #set enum(indent: 6pt, numbering: numbly(n => emph(strong(numbering("1.", n)))))
+
 #{
     show heading: it => align(center)[#text(size: 18pt, tracking: 0.1em, weight: "bold", it)]
     heading(
         numbering: none,
-        depth: 1,
+        level: 1,
         bookmarked: false,
         outlined: false,
-    )[ #institute 学院 #underline(offset: 4pt, extent: 6pt, [#course]) 课程实验报告]
+    )[#institute 学院 #underline(offset: 4pt, extent: 6pt, [#course]) 课程实验报告]
     set text(size: 12pt)
     set table.cell(align: left + horizon, inset: 6pt)
     table(
@@ -84,7 +97,7 @@
         [Email: #email],
         [题目: #link("https://open.oceanbase.com/train/detail/5?questionId=600004", "miniob 2023")],
         [贡献: 个人完成],
-        [Miniob: #link("https://github.com/oceanbase/miniob/tree/9f856a542decb6dc678650406af7d6e351940dab", "9f856a5")],
+        [miniob: #link("https://github.com/oceanbase/miniob/tree/9f856a542decb6dc678650406af7d6e351940dab", "9f856a5")],
         [Source: #link("https://github.com/arshtyi/SDU-Database-System-Experiment-2", "github")],
         [Mirror: #link("https://gitee.com/arshtyi/SDU-Database-System-Experiment-2", "gitee")],
     )
@@ -95,7 +108,7 @@
     numbering-separator: true,
     radius: 10pt,
     lang: false,
-    highlight-color: _highlight-colors,
+    highlight-color: palette.highlight,
 )
 #let _jump-highlight-lines(numbering: none, column: 0) = {
     if numbering == none or numbering == auto or numbering == false {
@@ -172,15 +185,10 @@
     unit[B],
     unit[KB],
 )
-
-#outline()
-#outline(
-    title: [List of Figures],
-    target: figure.where(kind: image),
-)
+// #outline()
 // #outline(
-//     title: [List of Code Blocks],
-//     target: raw.where(block: true),
+//     title: [List of Figures],
+//     target: figure.where(kind: image),
 // )
 
 = Experiment 1 <exp1>
@@ -188,8 +196,8 @@
 + 完成从拉取源代码到构建运行数据库系统的全过程.
 + 熟悉#link("https://www.docker.com", "Docker")和#link("https://code.visualstudio.com", "VSCode")的使用,为后续的开发和调试打下基础.
 + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800004&subQuestionName=basic", "题目1").
-== Setup
-拉取#link("https://github.com/oceanbase/miniob", "miniob")并推送至#link("https://github.com/arshtyi/SDU-Database-System-Experiment-2", "repo") (#link("https://gitee.com/arshtyi/SDU-Database-System-Experiment-2", "mirror"). 配置见手册与#link("https://help.gitee.com/repository/settings/sync-between-gitee-github", "sync help")).
+== Setup#footnote[环境搭建的详情可以参考@zhihu-662734805.]
+拉取miniob:
 #zebraw-jump(
     ```powershell
     git clone https://github.com/oceanbase/miniob.git
@@ -198,15 +206,8 @@
     rm -rf miniob
     ```,
 )
-配置好即可进行提测:
+将源代码推送至个人仓库#footnote[从github同步至gitee参考@gitee-sync-help.],配置好即可进行提测:
 #figure(image("asset/fig/1/judge_result/1.png"), caption: [实验1提测结果])<fig:exp1_judge_result_1>
-== 更新依赖
-如果要在本地进行后续实验,先更新需要的submodule:
-#zebraw-jump(
-    ```powershell
-    git submodule update --init --recursive
-    ```,
-)
 == Docker
 挂载项目目录并查看容器:
 #zebraw-jump(
@@ -410,17 +411,17 @@
     ```,
 )
 上述Tasks配置了以下几个任务:
-- CMake
-    + Configure: 配置CMake构建系统
-    + Build: 构建项目,依赖于Configure
-- Observer
-    + PID: 查看Observer进程
-    + Run: 启动Observer服务端
-- Obclient
-    + Run: 启动Obclient客户端
-- Test
+- CMake:
+    + Configure: 配置CMake构建系统.
+    + Build: 构建项目,依赖于Configure.
+- Observer:
+    + PID: 查看Observer进程.
+    + Run: 启动Observer服务端.
+- Obclient:
+    + Run: 启动Obclient客户端.
+- Test:
     #{
-        enum.item(0)[ 如果想要通过Tasks运行,作如下修改#zebraw-jump(
+        enum.item(0)[ 如果想要通过Tasks运行,作如下修改:#zebraw-jump(
                 header: [test/case/miniob_test.py],
                 numbering-offset: 1100,
                 ```python
@@ -433,12 +434,11 @@
             )
         ]
     }
-    + All: 运行测试脚本,依赖于Build
-    + All (Report Only): 仅运行测试脚本并输出报告,不执行测试
-    + Basic: 运行测试脚本的basic测试用例,依赖于Build
-    + Case: 运行测试脚本的指定测试用例,依赖于Build
-    + Case (Report Only): 仅运行测试脚本的指定测试用例并输出报告,不执行测试
-
+    + All: 运行测试脚本,依赖于Build.
+    + All (Report Only): 仅运行测试脚本并输出报告.
+    + Basic: 运行测试脚本的basic测试用例,依赖于Build.
+    + Case: 运行测试脚本的指定测试用例,依赖于Build.
+    + Case (Report Only): 仅运行测试脚本的指定测试用例并输出报告.
 === Debug
 在VSCode中配置Debug功能:
 #zebraw-jump(
@@ -1555,7 +1555,7 @@
 + 实现多表连接查询功能,支持使用JOIN关键字连接多张表进行查询.
 + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800010&subQuestionName=join-tables", "题目7").
 == 实现
-先实现`char`类型的强转换支持:
+先实现`char`类型的强转换支持#footnote[见@miniob-wiki #sym.hash 类型转换.]:
 #zebraw-jump(
     header: [src/observer/common/type/char_type.cpp],
     numbering: ((range(33, 41) + (60,)),),
@@ -1872,13 +1872,6 @@
 实验内容:
 + 实现大文本类型支持,增加TEXT数据类型用于存储大文本数据.
 + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800017&subQuestionName=text", "题目16").
-// == 环境
-// 需要`readline`支持:
-// #zebraw-jump(
-//     ```bash
-//     sudo apt install libreadline-dev
-//     ```,
-// )
 == 实现
 语法支持:
 #zebraw-jump(
@@ -2209,63 +2202,59 @@
 )
 #zebraw-jump(
     header: [src/observer/storage/table/heap_table_engine.cpp],
-    numbering: ((range(96, 128) + range(188, 211) + range(380, 392)),),
+    numbering: ((range(96, 128) + range(188, 209) + range(380, 390)),),
     ```cpp
-        Record stored_record;
-        const Record *record_for_cleanup = &record;
-        if (record.data() == nullptr) {
-          rc = record_handler_->get_record(record.rid(), stored_record);
-          if (OB_FAIL(rc)) {
-            LOG_WARN("failed to fetch record before delete. rid=%s, rc=%s", record.rid().to_string().c_str(), strrc(rc));
-            return rc;
-          }
-          record_for_cleanup = &stored_record;
+    Record stored_record;
+    const Record *record_for_cleanup = &record;
+    if (record.data() == nullptr) {
+      rc = record_handler_->get_record(record.rid(), stored_record);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to fetch record before delete. rid=%s, rc=%s", record.rid().to_string().c_str(), strrc(rc));
+        return rc;
+      }
+      record_for_cleanup = &stored_record;
+    }
+    for (Index *index : indexes_) {
+      rc = index->delete_entry(record_for_cleanup->data(), &record.rid());
+      ASSERT(RC::SUCCESS == rc, "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s", table_meta_->name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+    }
+    rc = record_handler_->delete_record(&record.rid());
+    if (OB_FAIL(rc)) {
+      return rc;
+    }
+    for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
+      if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+        continue;
+      }
+      auto *page_nums = reinterpret_cast<const PageNum *>(record_for_cleanup->data() + field_meta.offset());
+      rc = record_handler_->delete_text(page_nums, TEXT_PAGE_NUMS);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to dispose text pages while deleting record. rid=%s, field=%s, rc=%s", record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
+        return rc;
+      }
+    }
+    for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
+      if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+        continue;
+      }
+      const auto *old_pages = reinterpret_cast<const PageNum *>(old_record.data() + field_meta.offset());
+      const auto *new_pages = reinterpret_cast<const PageNum *>(new_record.data() + field_meta.offset());
+      bool        changed   = false;
+      for (int i = 0; i < TEXT_PAGE_NUMS; i++) {
+        if (old_pages[i] != new_pages[i]) {
+          changed = true;
+          break;
         }
-        for (Index *index : indexes_) {
-          rc = index->delete_entry(record_for_cleanup->data(), &record.rid());
-          ASSERT(RC::SUCCESS == rc,
-                 "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
-                 table_meta_->name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
-        }
-        rc = record_handler_->delete_record(&record.rid());
-        if (OB_FAIL(rc)) {
-          return rc;
-        }
-        for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
-          if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
-            continue;
-          }
-          auto *page_nums = reinterpret_cast<const PageNum *>(record_for_cleanup->data() + field_meta.offset());
-          rc = record_handler_->delete_text(page_nums, TEXT_PAGE_NUMS);
-          if (OB_FAIL(rc)) {
-            LOG_WARN("failed to dispose text pages while deleting record. rid=%s, field=%s, rc=%s",
-                record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
-            return rc;
-          }
-        }
-        for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
-            if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
-            continue;
-            }
-            const auto *old_pages = reinterpret_cast<const PageNum *>(old_record.data() + field_meta.offset());
-            const auto *new_pages = reinterpret_cast<const PageNum *>(new_record.data() + field_meta.offset());
-            bool        changed   = false;
-            for (int i = 0; i < TEXT_PAGE_NUMS; i++) {
-            if (old_pages[i] != new_pages[i]) {
-                changed = true;
-                break;
-            }
-            }
-            if (!changed) {
-            continue;
-            }
-            rc = record_handler_->delete_text(old_pages, TEXT_PAGE_NUMS);
-            if (OB_FAIL(rc)) {
-            LOG_WARN("failed to dispose old text pages while updating record. rid=%s, field=%s, rc=%s",
-                old_record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
-            return rc;
-            }
-        }
+      }
+      if (!changed) {
+        continue;
+      }
+      rc = record_handler_->delete_text(old_pages, TEXT_PAGE_NUMS);
+      if (OB_FAIL(rc)) {
+        LOG_WARN("failed to dispose old text pages while updating record. rid=%s, field=%s, rc=%s", old_record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
+        return rc;
+      }
+    }
     RC HeapTableEngine::write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count)
     {
       return record_handler_->write_text(text, text_len, page_nums, page_num_count);
@@ -2424,7 +2413,7 @@
     case AttrType::TEXTS:
     ```,
 )
-最后调整协议防止$64 #KB$请求被截断:
+最后调整协议防止$64 #KB$请求被截断#footnote[@zhihu-671981637, #link("https://github.com/oceanbase/miniob/pull/28", "miniob#28"),#link("https://github.com/oceanbase/miniob/pull/559", "miniob#559").]:
 #zebraw-jump(
     header: [src/observer/net/plain_communicator.cpp],
     numbering: ((40,),),
@@ -2459,6 +2448,9 @@
 @fig:exp5_run_result_1 证明了TEXT类型功能的正确性:成功创建了包含TEXT类型的表并插入了数据,多条查询语句正确执行并返回了预期结果,同时更新和删除操作也正确执行并修改了数据.
 == 提测
 推送至仓库并提测:
-#figure(image("asset/fig/5/judge_result/1.png"), caption: [实验5提测结果])<fig:exp5_judge_result_1>
+
 == 总结
 @exp5 主要实现了TEXT数据类型支持,包括语法解析、类型定义、接口设计和溢出处理等方面的工作,并且在此过程中熟悉了数据库系统中大文本数据的存储和管理相关知识,同时通过测试验证了功能的正确性.
+
+#pagebreak()
+#bibliography("asset/ref/ref.yml", style: "ieee", title: [References], full: true)

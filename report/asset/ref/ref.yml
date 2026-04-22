@@ -1,0 +1,48 @@
+gitee-sync-help:
+  type: Web
+  title: Gitee Sync Help
+  author:
+    - name: Gitee
+  url: https://help.gitee.com/repository/settings/sync-between-gitee-github
+
+miniob-wiki:
+  type: Web
+  title: miniob wiki
+  author:
+    - name: miniob
+  url: https://github.com/oceanbase/miniob/wiki
+
+zhihu-662734805:
+  type: Web
+  title: Zhihu 662734805
+  author:
+    - name: sunhhhhh
+  url: https://zhuanlan.zhihu.com/p/662734805
+
+zhihu-671981637:
+  type: Web
+  title: Zhihu 671981637
+  author:
+    - name: Fischer
+  url: https://zhuanlan.zhihu.com/p/671981637
+
+vscode-docs:
+  type: Web
+  title: Visual Studio Code Documentation
+  author:
+    - name: Microsoft
+  url: https://code.visualstudio.com/docs
+
+docker-docs:
+  type: Web
+  title: Docker Documentation
+  author:
+    - name: Docker Inc.
+  url: https://docs.docker.com/
+
+typst-docs:
+  type: Web
+  title: Typst Documentation
+  author:
+    - name: Typst
+  url: https://typst.app/docs/
