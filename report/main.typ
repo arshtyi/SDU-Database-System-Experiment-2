@@ -84,8 +84,8 @@
         [Email: #email],
         [题目: #link("https://open.oceanbase.com/train/detail/5?questionId=600004", "miniob 2023")],
         [贡献: 个人完成],
-        [MiniOB Hash: #link("https://github.com/oceanbase/miniob/tree/9f856a542decb6dc678650406af7d6e351940dab", "9f856a5")],
-        [Source: #link("https://github.com/arshtyi/SDU-Database-System-Experiment-2", "gitHub")],
+        [Miniob: #link("https://github.com/oceanbase/miniob/tree/9f856a542decb6dc678650406af7d6e351940dab", "9f856a5")],
+        [Source: #link("https://github.com/arshtyi/SDU-Database-System-Experiment-2", "github")],
         [Mirror: #link("https://gitee.com/arshtyi/SDU-Database-System-Experiment-2", "gitee")],
     )
 }
@@ -166,6 +166,22 @@
         )
     }
 }
+
+// Define some units for the report
+#let (B, KB) = (
+    unit[B],
+    unit[KB],
+)
+
+#outline()
+#outline(
+    title: [List of Figures],
+    target: figure.where(kind: image),
+)
+// #outline(
+//     title: [List of Code Blocks],
+//     target: raw.where(block: true),
+// )
 
 = Experiment 1 <exp1>
 实验内容:
@@ -295,6 +311,99 @@
                     "reveal": "always",
                     "panel": "dedicated"
                 }
+            },
+            {
+                "label": "Test: All",
+                "type": "shell",
+                "command": "python3",
+                "args": [
+                    "${workspaceFolder}/test/case/miniob_test.py"
+                ],
+                "options": {
+                    "cwd": "${workspaceFolder}/test/case"
+                },
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": false
+                }
+            },
+            {
+                "label": "Test: All (Report Only)",
+                "type": "shell",
+                "command": "python3",
+                "args": [
+                    "${workspaceFolder}/test/case/miniob_test.py",
+                    "--report-only"
+                ],
+                "options": {
+                    "cwd": "${workspaceFolder}/test/case"
+                },
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": false
+                }
+            },
+            {
+                "label": "Test: Basic",
+                "type": "shell",
+                "command": "python3",
+                "args": [
+                    "${workspaceFolder}/test/case/miniob_test.py",
+                    "--test-cases=basic"
+                ],
+                "options": {
+                    "cwd": "${workspaceFolder}/test/case"
+                },
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": false
+                }
+            },
+            {
+                "label": "Test: Case",
+                "type": "shell",
+                "command": "python3",
+                "args": [
+                    "${workspaceFolder}/test/case/miniob_test.py",
+                    "--test-cases=${input:miniobTestCase}"
+                ],
+                "options": {
+                    "cwd": "${workspaceFolder}/test/case"
+                },
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": false
+                }
+            },
+            {
+                "label": "Test: Case (Report Only)",
+                "type": "shell",
+                "command": "python3",
+                "args": [
+                    "${workspaceFolder}/test/case/miniob_test.py",
+                    "--test-cases=${input:miniobTestCase}",
+                    "--report-only"
+                ],
+                "options": {
+                    "cwd": "${workspaceFolder}/test/case"
+                },
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": false
+                }
+            }
+        ],
+        "inputs": [
+            {
+                "id": "miniobTestCase",
+                "type": "promptString",
+                "description": "请输入要运行的测试用例名，多个用例用逗号分隔",
+                "default": "basic"
             }
         ]
     }
@@ -309,6 +418,27 @@
     + Run: 启动Observer服务端
 - Obclient
     + Run: 启动Obclient客户端
+- Test
+    #{
+        enum.item(0)[ 如果想要通过Tasks运行,作如下修改#zebraw-jump(
+                header: [test/case/miniob_test.py],
+                numbering-offset: 1100,
+                ```python
+                # os.setpgrp()
+                try:
+                    os.setpgrp()
+                except PermissionError:
+                    pass
+                ```,
+            )
+        ]
+    }
+    + All: 运行测试脚本,依赖于Build
+    + All (Report Only): 仅运行测试脚本并输出报告,不执行测试
+    + Basic: 运行测试脚本的basic测试用例,依赖于Build
+    + Case: 运行测试脚本的指定测试用例,依赖于Build
+    + Case (Report Only): 仅运行测试脚本的指定测试用例并输出报告,不执行测试
+
 === Debug
 在VSCode中配置Debug功能:
 #zebraw-jump(
@@ -1735,3 +1865,600 @@
 #figure(image("asset/fig/4/judge_result/1.png"), caption: [实验4提测结果])<fig:exp4_judge_result_1>
 == 总结
 @exp4 主要实现了基于JOIN的多表查询功能,并且在此过程中熟悉了数据库系统中多表查询的相关知识,同时通过测试验证了功能的正确性.
+
+= Experiment 5 <exp5>
+基于@exp4.
+
+实验内容:
++ 实现大文本类型支持,增加TEXT数据类型用于存储大文本数据.
++ 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800017&subQuestionName=text", "题目16").
+// == 环境
+// 需要`readline`支持:
+// #zebraw-jump(
+//     ```bash
+//     sudo apt install libreadline-dev
+//     ```,
+// )
+== 实现
+语法支持:
+#zebraw-jump(
+    header: [src/observer/sql/parser/lex_sql.l],
+    numbering-offset: 116,
+    ```lex
+    TEXT                                    RETURN_TOKEN(TEXT_T);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/parser/yacc_sql.y],
+    numbering: (((92,) + range(375, 380) + range(386, 391) + (401,)),),
+    ```yacc
+    TEXT_T
+    if ($$->type == AttrType::TEXTS) {
+      $$->length = TEXT_RECORD_BYTES;
+    } else {
+      $$->length = $4;
+    }
+    if ($$->type == AttrType::TEXTS) {
+      $$->length = TEXT_RECORD_BYTES;
+    } else {
+      $$->length = 4;
+    }
+    | TEXT_T   { $$ = static_cast<int>(AttrType::TEXTS); }
+    ```,
+)
+增加类型支持:
+#zebraw-jump(
+    header: [src/observer/common/type/attr_type.h],
+    numbering: (((12, 22) + range(31, 34)),),
+    ```cpp
+    #include <cstdint>
+    TEXTS,     ///< 超长文本类型
+    static constexpr int TEXT_MAX_BYTES     = 65535;
+    static constexpr int TEXT_PAGE_NUMS     = 9;
+    static constexpr int TEXT_RECORD_BYTES  = TEXT_PAGE_NUMS * sizeof(int32_t);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/common/type/attr_type.cpp],
+    numbering: ((15, 42),),
+    ```cpp
+    const char *ATTR_TYPE_NAME[] = {"undefined", "chars", "ints", "floats", "dates", "vectors", "booleans", "texts"};
+    return (type == AttrType::CHARS || type == AttrType::TEXTS);
+    ```,
+)
+注意保持旧类型枚举值兼容:
+#zebraw-jump(
+    header: [src/observer/common/type/char_type.h],
+    numbering-offset: 22,
+    ```cpp
+    explicit CharType(AttrType attr_type = AttrType::CHARS) : DataType(attr_type) {}
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/common/type/char_type.cpp],
+    numbering: (((19,) + range(26, 31) + range(54, 62) + (69,)),),
+    ```cpp
+    ASSERT(is_string_type(left.attr_type()) && is_string_type(right.attr_type()), "invalid type");
+    if (attr_type_ == AttrType::TEXTS) {
+      val.set_text(data.c_str());
+    } else {
+      val.set_string(data.c_str());
+    }
+    case AttrType::CHARS: {
+      result.set_string(val.get_string().c_str());
+      return RC::SUCCESS;
+    }
+    case AttrType::TEXTS: {
+      result.set_text(val.get_string().c_str());
+      return RC::SUCCESS;
+    }
+    if (type == AttrType::CHARS || type == AttrType::TEXTS) {
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/common/type/data_type.cpp],
+    numbering-offset: 22,
+    ```cpp
+    make_unique<CharType>(AttrType::CHARS),
+    make_unique<CharType>(AttrType::TEXTS),
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/common/value.h],
+    numbering-offset: 122,
+    ```cpp
+    void set_text(const char *s, int len = 0);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/common/value.cpp],
+    numbering: (
+        (
+            range(43, 46)
+                + range(76, 79)
+                + (106,)
+                + range(126, 129)
+                + range(203, 223)
+                + range(252, 255)
+                + (266,)
+                + range(280, 283)
+                + range(313, 321)
+                + range(360, 368)
+                + (392,)
+                + range(406, 423)
+        ),
+    ),
+    ```cpp
+    case AttrType::TEXTS: {
+      set_string_from_other(other);
+    } break;
+    case AttrType::TEXTS: {
+      set_string_from_other(other);
+    } break;
+    case AttrType::TEXTS:
+    case AttrType::TEXTS: {
+      set_text(data, length);
+    } break;
+    void Value::set_text(const char *s, int len /*= 0*/)
+    {
+    reset();
+    attr_type_ = AttrType::TEXTS;
+    if (s == nullptr) {
+        value_.pointer_value_ = nullptr;
+        length_               = 0;
+    } else {
+        own_data_ = true;
+        if (len > 0) {
+        len = strnlen(s, len);
+        } else {
+        len = strlen(s);
+        }
+        value_.pointer_value_ = new char[len + 1];
+        length_               = len;
+        memcpy(value_.pointer_value_, s, len);
+        value_.pointer_value_[len] = '\0';
+    }
+    }
+    case AttrType::TEXTS: {
+      set_text(value.get_string().c_str());
+    } break;
+    ASSERT(attr_type_ == AttrType::CHARS || attr_type_ == AttrType::TEXTS, "attr type is not string");
+    case AttrType::TEXTS: {
+      return value_.pointer_value_;
+    } break;
+    case AttrType::TEXTS: {
+      try {
+        return (int)(stol(value_.pointer_value_));
+      } catch (exception const &ex) {
+        LOG_TRACE("failed to convert string to number. s=%s, ex=%s", value_.pointer_value_, ex.what());
+        return 0;
+      }
+    }
+    case AttrType::TEXTS: {
+      try {
+        return stof(value_.pointer_value_);
+      } catch (exception const &ex) {
+        LOG_TRACE("failed to convert string to float. s=%s, ex=%s", value_.pointer_value_, ex.what());
+        return 0.0;
+      }
+    } break;
+    ASSERT(attr_type_ == AttrType::CHARS || attr_type_ == AttrType::TEXTS, "attr type is not string");
+    int int_val = stol(value_.pointer_value_);
+        if (int_val != 0) {
+          return true;
+        }
+
+        return value_.pointer_value_ != nullptr;
+      } catch (exception const &ex) {
+        LOG_TRACE("failed to convert string to float or integer. s=%s, ex=%s", value_.pointer_value_, ex.what());
+        return value_.pointer_value_ != nullptr;
+      }
+    } break;
+    case AttrType::TEXTS: {
+      try {
+        float val = stof(value_.pointer_value_);
+        if (val >= EPSILON || val <= -EPSILON) {
+          return true;
+        }
+    ```,
+)
+溢出实现:
+#zebraw-jump(
+    header: [src/observer/storage/record/record_manager.h],
+    numbering-offset: 413,
+    ```cpp
+    RC write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count);
+    RC read_text(const PageNum *page_nums, int32_t page_num_count, string &text);
+    RC delete_text(const PageNum *page_nums, int32_t page_num_count);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/record/record_manager.cpp],
+    numbering: ((range(25, 28) + range(740, 847)),),
+    ```cpp
+    static constexpr int TEXT_OVERFLOW_MAGIC = 0x54585431;  // "TXT1"
+    static constexpr int TEXT_META_SIZE      = sizeof(int32_t);
+    static constexpr int TEXT_PAGE_DATA_SIZE = BP_PAGE_DATA_SIZE - PAGE_HEADER_SIZE - TEXT_META_SIZE;
+    RC RecordFileHandler::write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count)
+    {
+      if (text == nullptr || text_len < 0 || page_nums == nullptr || page_num_count <= 0) {
+        return RC::INVALID_ARGUMENT;
+      }
+      if (text_len > TEXT_MAX_BYTES) {
+        return RC::IOERR_TOO_LONG;
+      }
+      memset(page_nums, 0xFF, sizeof(PageNum) * page_num_count);
+      const int32_t bytes_to_write = text_len + 1;  // append '\0'
+      const int32_t page_need      = (bytes_to_write + TEXT_PAGE_DATA_SIZE - 1) / TEXT_PAGE_DATA_SIZE;
+      if (page_need > page_num_count) {
+        LOG_WARN("text is too large for configured page slots. bytes=%d, need=%d, max=%d",
+            bytes_to_write, page_need, page_num_count);
+        return RC::IOERR_TOO_LONG;
+      }
+      int32_t written_bytes = 0;
+      for (int32_t i = 0; i < page_need; i++) {
+        Frame *frame = nullptr;
+        RC rc = disk_buffer_pool_->allocate_page(&frame);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to allocate overflow page for text. rc=%s", strrc(rc));
+          for (int32_t j = 0; j < i; j++) {
+            if (page_nums[j] != BP_INVALID_PAGE_NUM) {
+              disk_buffer_pool_->dispose_page(page_nums[j]);
+            }
+          }
+          return rc;
+        }
+        PageHeader *overflow_header = reinterpret_cast<PageHeader *>(frame->data());
+        overflow_header->record_num       = 0;
+        overflow_header->column_num       = 0;
+        overflow_header->record_real_size = 0;
+        overflow_header->record_size      = 0;
+        overflow_header->record_capacity  = 0;
+        overflow_header->col_idx_offset   = 0;
+        overflow_header->data_offset      = 0;
+        int32_t *meta_magic = reinterpret_cast<int32_t *>(frame->data() + PAGE_HEADER_SIZE);
+        *meta_magic = TEXT_OVERFLOW_MAGIC;
+        char *payload = frame->data() + PAGE_HEADER_SIZE + TEXT_META_SIZE;
+        const int32_t remain   = bytes_to_write - written_bytes;
+        const int32_t copy_len = min(remain, TEXT_PAGE_DATA_SIZE);
+        memcpy(payload, text + written_bytes, copy_len);
+        if (copy_len < TEXT_PAGE_DATA_SIZE) {
+          memset(payload + copy_len, 0, TEXT_PAGE_DATA_SIZE - copy_len);
+        }
+        page_nums[i] = frame->page_num();
+        frame->mark_dirty();
+        disk_buffer_pool_->unpin_page(frame);
+
+        written_bytes += copy_len;
+      }
+      return RC::SUCCESS;
+    }
+    RC RecordFileHandler::read_text(const PageNum *page_nums, int32_t page_num_count, string &text)
+    {
+      if (page_nums == nullptr || page_num_count <= 0) {
+        return RC::INVALID_ARGUMENT;
+      }
+      text.clear();
+      for (int32_t i = 0; i < page_num_count; i++) {
+        const PageNum page_num = page_nums[i];
+        if (page_num == BP_INVALID_PAGE_NUM) {
+          break;
+        }
+        Frame *frame = nullptr;
+        RC rc = disk_buffer_pool_->get_this_page(page_num, &frame);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to load text overflow page. page_num=%d, rc=%s", page_num, strrc(rc));
+          return rc;
+        }
+        const int32_t *meta_magic = reinterpret_cast<int32_t *>(frame->data() + PAGE_HEADER_SIZE);
+        if (*meta_magic != TEXT_OVERFLOW_MAGIC) {
+          disk_buffer_pool_->unpin_page(frame);
+          LOG_WARN("invalid text overflow page magic. page_num=%d, magic=%d", page_num, *meta_magic);
+          return RC::INTERNAL;
+        }
+        const char *payload = frame->data() + PAGE_HEADER_SIZE + TEXT_META_SIZE;
+        size_t      len     = strnlen(payload, TEXT_PAGE_DATA_SIZE);
+        text.append(payload, len);
+        const bool finished = len < static_cast<size_t>(TEXT_PAGE_DATA_SIZE);
+        disk_buffer_pool_->unpin_page(frame);
+
+        if (finished) {
+          break;
+        }
+      }
+      return RC::SUCCESS;
+    }
+    RC RecordFileHandler::delete_text(const PageNum *page_nums, int32_t page_num_count)
+    {
+      if (page_nums == nullptr || page_num_count <= 0) {
+        return RC::INVALID_ARGUMENT;
+      }
+      for (int32_t i = 0; i < page_num_count; i++) {
+        const PageNum page_num = page_nums[i];
+        if (page_num == BP_INVALID_PAGE_NUM) {
+          break;
+        }
+        RC rc = disk_buffer_pool_->dispose_page(page_num);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to dispose text overflow page. page_num=%d, rc=%s", page_num, strrc(rc));
+          return rc;
+        }
+      }
+      return RC::SUCCESS;
+    }
+    ```,
+)
+接口实现+功能补充:
+#zebraw-jump(
+    header: [src/observer/storage/table/table_engine.h],
+    numbering-offset: 52,
+    ```cpp
+    virtual RC     write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count) = 0;
+    virtual RC     read_text(const PageNum *page_nums, int32_t page_num_count, string &text) = 0;
+    virtual RC     delete_text(const PageNum *page_nums, int32_t page_num_count) = 0;
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/table/heap_table_engine.h],
+    numbering-offset: 40,
+    ```cpp
+    RC write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count) override;
+    RC read_text(const PageNum *page_nums, int32_t page_num_count, string &text) override;
+    RC delete_text(const PageNum *page_nums, int32_t page_num_count) override;
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/table/heap_table_engine.cpp],
+    numbering: ((range(96, 128) + range(188, 211) + range(380, 392)),),
+    ```cpp
+        Record stored_record;
+        const Record *record_for_cleanup = &record;
+        if (record.data() == nullptr) {
+          rc = record_handler_->get_record(record.rid(), stored_record);
+          if (OB_FAIL(rc)) {
+            LOG_WARN("failed to fetch record before delete. rid=%s, rc=%s", record.rid().to_string().c_str(), strrc(rc));
+            return rc;
+          }
+          record_for_cleanup = &stored_record;
+        }
+        for (Index *index : indexes_) {
+          rc = index->delete_entry(record_for_cleanup->data(), &record.rid());
+          ASSERT(RC::SUCCESS == rc,
+                 "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
+                 table_meta_->name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
+        }
+        rc = record_handler_->delete_record(&record.rid());
+        if (OB_FAIL(rc)) {
+          return rc;
+        }
+        for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
+          if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+            continue;
+          }
+          auto *page_nums = reinterpret_cast<const PageNum *>(record_for_cleanup->data() + field_meta.offset());
+          rc = record_handler_->delete_text(page_nums, TEXT_PAGE_NUMS);
+          if (OB_FAIL(rc)) {
+            LOG_WARN("failed to dispose text pages while deleting record. rid=%s, field=%s, rc=%s",
+                record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
+            return rc;
+          }
+        }
+        for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
+            if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+            continue;
+            }
+            const auto *old_pages = reinterpret_cast<const PageNum *>(old_record.data() + field_meta.offset());
+            const auto *new_pages = reinterpret_cast<const PageNum *>(new_record.data() + field_meta.offset());
+            bool        changed   = false;
+            for (int i = 0; i < TEXT_PAGE_NUMS; i++) {
+            if (old_pages[i] != new_pages[i]) {
+                changed = true;
+                break;
+            }
+            }
+            if (!changed) {
+            continue;
+            }
+            rc = record_handler_->delete_text(old_pages, TEXT_PAGE_NUMS);
+            if (OB_FAIL(rc)) {
+            LOG_WARN("failed to dispose old text pages while updating record. rid=%s, field=%s, rc=%s",
+                old_record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
+            return rc;
+            }
+        }
+    RC HeapTableEngine::write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count)
+    {
+      return record_handler_->write_text(text, text_len, page_nums, page_num_count);
+    }
+    RC HeapTableEngine::read_text(const PageNum *page_nums, int32_t page_num_count, string &text)
+    {
+      return record_handler_->read_text(page_nums, page_num_count, text);
+    }
+    RC HeapTableEngine::delete_text(const PageNum *page_nums, int32_t page_num_count)
+    {
+      return record_handler_->delete_text(page_nums, page_num_count);
+    }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/table/lsm_table_engine.h],
+    numbering-offset: 45,
+    ```cpp
+    RC write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count) override
+    {
+      return RC::UNIMPLEMENTED;
+    }
+    RC read_text(const PageNum *page_nums, int32_t page_num_count, string &text) override { return RC::UNIMPLEMENTED; }
+    RC delete_text(const PageNum *page_nums, int32_t page_num_count) override { return RC::UNIMPLEMENTED; }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/table/table.h],
+    numbering-offset: 122,
+    ```cpp
+    RC write_text(const char *text, int32_t text_len, char *field_data);
+    RC read_text(const char *field_data, Value &value) const;
+    RC delete_text(const char *field_data);
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/table/table.cpp],
+    numbering: ((range(38, 47) + range(187, 202) + range(283, 292) + range(337, 367)),),
+    ```cpp
+    namespace {
+    void fill_invalid_text_pages(char *field_data)
+    {
+      auto *page_nums = reinterpret_cast<PageNum *>(field_data);
+      for (int i = 0; i < TEXT_PAGE_NUMS; i++) {
+        page_nums[i] = BP_INVALID_PAGE_NUM;
+      }
+    }
+    }  // namespace
+    RC rc = engine_->insert_record(record);
+    if (OB_SUCC(rc) || record.data() == nullptr) {
+        return rc;
+    }
+    for (const FieldMeta &field_meta : *table_meta_.field_metas()) {
+        if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+        continue;
+        }
+        RC rc2 = delete_text(record.data() + field_meta.offset());
+        if (OB_FAIL(rc2)) {
+        LOG_WARN("failed to recycle text pages after insert failure. table=%s, field=%s, rc=%s",
+            table_meta_.name(), field_meta.name(), strrc(rc2));
+        }
+    }
+    return rc;
+    if (field->type() == AttrType::TEXTS) {
+        if (data_len > TEXT_MAX_BYTES) {
+        LOG_WARN("text value too long. table=%s, field=%s, len=%d", table_meta_.name(), field->name(), data_len);
+        return RC::IOERR_TOO_LONG;
+        }
+        char *field_data = record_data + field->offset();
+        fill_invalid_text_pages(field_data);
+        return write_text(value.data(), static_cast<int32_t>(data_len), field_data);
+    }
+    RC Table::write_text(const char *text, int32_t text_len, char *field_data)
+    {
+    if (field_data == nullptr) {
+        return RC::INVALID_ARGUMENT;
+    }
+    auto *page_nums = reinterpret_cast<PageNum *>(field_data);
+    return engine_->write_text(text, text_len, page_nums, TEXT_PAGE_NUMS);
+    }
+    RC Table::read_text(const char *field_data, Value &value) const
+    {
+    if (field_data == nullptr) {
+        return RC::INVALID_ARGUMENT;
+    }
+    const auto *page_nums = reinterpret_cast<const PageNum *>(field_data);
+    string      text;
+    RC          rc = engine_->read_text(page_nums, TEXT_PAGE_NUMS, text);
+    if (OB_FAIL(rc)) {
+        return rc;
+    }
+    value.set_text(text.c_str(), static_cast<int>(text.size()));
+    return RC::SUCCESS;
+    }
+    RC Table::delete_text(const char *field_data)
+    {
+    if (field_data == nullptr) {
+        return RC::INVALID_ARGUMENT;
+    }
+    const auto *page_nums = reinterpret_cast<const PageNum *>(field_data);
+    return engine_->delete_text(page_nums, TEXT_PAGE_NUMS);
+    }
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/operator/update_physical_operator.cpp],
+    numbering: ((range(72, 75) + range(108, 121)),),
+    ```cpp
+    if (field_->type() == AttrType::TEXTS) {
+        table_->delete_text(new_record.data() + field_->offset());
+    }
+    } else if (field_->type() == AttrType::TEXTS) {
+        memset(record.data() + field_offset, 0xFF, field_len);
+        if (value_.length() > TEXT_MAX_BYTES) {
+        LOG_WARN("text value too long for update. table=%s, field=%s, len=%d",
+            table_->name(), field_->name(), value_.length());
+        return RC::IOERR_TOO_LONG;
+        }
+        RC rc = table_->write_text(value_.data(), value_.length(), record.data() + field_offset);
+        if (OB_FAIL(rc)) {
+        LOG_WARN("failed to write text pages while updating record. table=%s, field=%s, rc=%s",
+            table_->name(), field_->name(), strrc(rc));
+        return rc;
+        }
+    ```,
+)
+读取:
+#zebraw-jump(
+    header: [src/observer/sql/expr/tuple.h],
+    numbering-offset: 197,
+    ```cpp
+    if (field_meta->type() == AttrType::TEXTS) {
+      return table_->read_text(this->record_->data() + field_meta->offset(), cell);
+    }
+    ```,
+)
+兼容性调整:
+#zebraw-jump(
+    header: [src/observer/sql/expr/expression.cpp],
+    numbering-offset: 246,
+    ```cpp
+    } else if (left_column.attr_type() == AttrType::CHARS || left_column.attr_type() == AttrType::TEXTS) {
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/sql/executor/load_data_executor.cpp],
+    numbering-offset: 61,
+    ```cpp
+    if (!is_string_type(field->type())) {
+    ```,
+)
+#zebraw-jump(
+    header: [src/observer/storage/common/codec.h],
+    numbering-offset: 436,
+    ```cpp
+    case AttrType::TEXTS:
+    ```,
+)
+最后调整协议防止$64 #KB$请求被截断:
+#zebraw-jump(
+    header: [src/observer/net/plain_communicator.cpp],
+    numbering: ((40,),),
+    ```cpp
+    const int    max_packet_size = 131072;
+    ```,
+)
+== Build
+编译配置同@exp1, 直接运行CMake: Build即可:
+#figure(image("asset/fig/5/build_result/1.png"), caption: [实验5构建结果])<fig:exp5_build_result_1>
+接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+== Test
+使用下述命令测试:
+#zebraw-jump(
+    ```sql
+    create table text_table(id int, info text);
+    insert into text_table values (1,'this is a very very long string');
+    insert into text_table values (2,'this is a very very long string2');
+    insert into text_table values (3,'this is a very very long string3');
+    select * from text_table;
+    delete from text_table where id=1;
+    select * from text_table;
+    UPDATE text_table set info='a tmp data' where id = 2;
+    select * from text_table;
+    insert into text_table values (4,'this is a very very long string ..... pad1');
+    select * from text_table;
+    insert into text_table values (5,'this is a very very long string ...... pad');
+    select * from text_table;
+    ```,
+)
+#figure(image("asset/fig/5/run_result/1.png"), caption: [实验5测试结果])<fig:exp5_run_result_1>
+@fig:exp5_run_result_1 证明了TEXT类型功能的正确性:成功创建了包含TEXT类型的表并插入了数据,多条查询语句正确执行并返回了预期结果,同时更新和删除操作也正确执行并修改了数据.
+== 提测
+推送至仓库并提测:
+#figure(image("asset/fig/5/judge_result/1.png"), caption: [实验5提测结果])<fig:exp5_judge_result_1>
+== 总结
+@exp5 主要实现了TEXT数据类型支持,包括语法解析、类型定义、接口设计和溢出处理等方面的工作,并且在此过程中熟悉了数据库系统中大文本数据的存储和管理相关知识,同时通过测试验证了功能的正确性.

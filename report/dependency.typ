@@ -3,3 +3,4 @@
 #import "@preview/numbly:0.1.0": numbly
 #import "@preview/zebraw:0.6.1": *
 #import "@preview/headcount:0.1.0": dependent-numbering, reset-counter
+#import "@preview/fancy-units:0.1.1": add-macros, fancy-units-configure, num, qty, unit
