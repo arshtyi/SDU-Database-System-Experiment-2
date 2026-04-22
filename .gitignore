@@ -3,3 +3,4 @@
 *.sublime-syntax
 
 .venv/
+raw/
