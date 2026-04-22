@@ -37,7 +37,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Run highlight script with uv
-        working-directory: report/highlight/script
+        working-directory: report/script
         run: uv run main.py
 
       - name: Setup Fontist
