@@ -52,7 +52,7 @@ jobs:
           cache-dependency-path: report/dependency.typ
 
       - name: Compile Typst document
-        run: typst compile report/main.typ report/output.pdf --font-path ~/.fontist/fonts
+        run: typst compile report/main.typ report/main.pdf --font-path ~/.fontist/fonts
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

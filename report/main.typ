@@ -225,13 +225,7 @@
     if trimmed == "" { () } else { eval(trimmed) }
 }
 #let _display-numbering(numbering) = {
-    let cols = if type(numbering) == array and numbering.len() > 0 and type(numbering.at(0)) == array {
-        numbering
-    } else if type(numbering) == array {
-        (numbering,)
-    } else {
-        ()
-    }
+    let cols = _normalize-numbering-cols(numbering)
     cols.map(col => col.map(v => if type(v) == int { v } else { [ ] }))
 }
 #let zebraw-file(filepath) = context {
