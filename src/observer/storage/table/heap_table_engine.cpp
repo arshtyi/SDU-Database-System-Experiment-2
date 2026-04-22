@@ -93,13 +93,40 @@ RC HeapTableEngine::get_record(const RID &rid, Record &record)
 RC HeapTableEngine::delete_record(const Record &record)
 {
   RC rc = RC::SUCCESS;
+  Record stored_record;
+  const Record *record_for_cleanup = &record;
+  if (record.data() == nullptr) {
+    rc = record_handler_->get_record(record.rid(), stored_record);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to fetch record before delete. rid=%s, rc=%s", record.rid().to_string().c_str(), strrc(rc));
+      return rc;
+    }
+    record_for_cleanup = &stored_record;
+  }
+
   for (Index *index : indexes_) {
-    rc = index->delete_entry(record.data(), &record.rid());
+    rc = index->delete_entry(record_for_cleanup->data(), &record.rid());
     ASSERT(RC::SUCCESS == rc, 
            "failed to delete entry from index. table name=%s, index name=%s, rid=%s, rc=%s",
            table_meta_->name(), index->index_meta().name(), record.rid().to_string().c_str(), strrc(rc));
   }
   rc = record_handler_->delete_record(&record.rid());
+  if (OB_FAIL(rc)) {
+    return rc;
+  }
+
+  for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
+    if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+      continue;
+    }
+    auto *page_nums = reinterpret_cast<const PageNum *>(record_for_cleanup->data() + field_meta.offset());
+    rc = record_handler_->delete_text(page_nums, TEXT_PAGE_NUMS);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to dispose text pages while deleting record. rid=%s, field=%s, rc=%s",
+          record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
+      return rc;
+    }
+  }
   return rc;
 }
 
@@ -156,6 +183,31 @@ RC HeapTableEngine::update_record_with_trx(const Record &old_record, const Recor
                 strrc(rc2));
     }
     return rc;
+  }
+
+  for (const FieldMeta &field_meta : *table_meta_->field_metas()) {
+    if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+      continue;
+    }
+    const auto *old_pages = reinterpret_cast<const PageNum *>(old_record.data() + field_meta.offset());
+    const auto *new_pages = reinterpret_cast<const PageNum *>(new_record.data() + field_meta.offset());
+    bool        changed   = false;
+    for (int i = 0; i < TEXT_PAGE_NUMS; i++) {
+      if (old_pages[i] != new_pages[i]) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) {
+      continue;
+    }
+
+    rc = record_handler_->delete_text(old_pages, TEXT_PAGE_NUMS);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to dispose old text pages while updating record. rid=%s, field=%s, rc=%s",
+          old_record.rid().to_string().c_str(), field_meta.name(), strrc(rc));
+      return rc;
+    }
   }
 
   return RC::SUCCESS;
@@ -323,6 +375,21 @@ RC HeapTableEngine::sync()
   rc = data_buffer_pool_->flush_all_pages();
   LOG_INFO("Sync table over. table=%s", table_meta_->name());
   return rc;
+}
+
+RC HeapTableEngine::write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count)
+{
+  return record_handler_->write_text(text, text_len, page_nums, page_num_count);
+}
+
+RC HeapTableEngine::read_text(const PageNum *page_nums, int32_t page_num_count, string &text)
+{
+  return record_handler_->read_text(page_nums, page_num_count, text);
+}
+
+RC HeapTableEngine::delete_text(const PageNum *page_nums, int32_t page_num_count)
+{
+  return record_handler_->delete_text(page_nums, page_num_count);
 }
 
 Index *HeapTableEngine::find_index(const char *index_name) const

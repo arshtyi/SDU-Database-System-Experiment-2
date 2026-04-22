@@ -12,14 +12,19 @@ See the Mulan PSL v2 for more details. */
 // Created by Meiyi & Longda on 2021/4/13.
 //
 #include "storage/record/record_manager.h"
+#include "common/lang/algorithm.h"
 #include "common/log/log.h"
 #include "storage/common/condition_filter.h"
 #include "storage/trx/trx.h"
 #include "storage/clog/log_handler.h"
+#include "common/type/attr_type.h"
 
 using namespace common;
 
 static constexpr int PAGE_HEADER_SIZE = (sizeof(PageHeader));
+static constexpr int TEXT_OVERFLOW_MAGIC = 0x54585431;  // "TXT1"
+static constexpr int TEXT_META_SIZE      = sizeof(int32_t);
+static constexpr int TEXT_PAGE_DATA_SIZE = BP_PAGE_DATA_SIZE - PAGE_HEADER_SIZE - TEXT_META_SIZE;
 RecordPageHandler   *RecordPageHandler::create(StorageFormat format)
 {
   if (format == StorageFormat::ROW_FORMAT) {
@@ -730,6 +735,130 @@ RC RecordFileHandler::visit_record(const RID &rid, function<bool(Record &)> upda
     rc = page_handler->update_record(rid, record.data());
   }
   return rc;
+}
+
+RC RecordFileHandler::write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count)
+{
+  if (text == nullptr || text_len < 0 || page_nums == nullptr || page_num_count <= 0) {
+    return RC::INVALID_ARGUMENT;
+  }
+  if (text_len > TEXT_MAX_BYTES) {
+    return RC::IOERR_TOO_LONG;
+  }
+
+  memset(page_nums, 0xFF, sizeof(PageNum) * page_num_count);
+
+  const int32_t bytes_to_write = text_len + 1;  // append '\0'
+  const int32_t page_need      = (bytes_to_write + TEXT_PAGE_DATA_SIZE - 1) / TEXT_PAGE_DATA_SIZE;
+  if (page_need > page_num_count) {
+    LOG_WARN("text is too large for configured page slots. bytes=%d, need=%d, max=%d",
+        bytes_to_write, page_need, page_num_count);
+    return RC::IOERR_TOO_LONG;
+  }
+
+  int32_t written_bytes = 0;
+  for (int32_t i = 0; i < page_need; i++) {
+    Frame *frame = nullptr;
+    RC rc = disk_buffer_pool_->allocate_page(&frame);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to allocate overflow page for text. rc=%s", strrc(rc));
+      for (int32_t j = 0; j < i; j++) {
+        if (page_nums[j] != BP_INVALID_PAGE_NUM) {
+          disk_buffer_pool_->dispose_page(page_nums[j]);
+        }
+      }
+      return rc;
+    }
+
+    PageHeader *overflow_header = reinterpret_cast<PageHeader *>(frame->data());
+    overflow_header->record_num       = 0;
+    overflow_header->column_num       = 0;
+    overflow_header->record_real_size = 0;
+    overflow_header->record_size      = 0;
+    overflow_header->record_capacity  = 0;
+    overflow_header->col_idx_offset   = 0;
+    overflow_header->data_offset      = 0;
+
+    int32_t *meta_magic = reinterpret_cast<int32_t *>(frame->data() + PAGE_HEADER_SIZE);
+    *meta_magic = TEXT_OVERFLOW_MAGIC;
+
+    char *payload = frame->data() + PAGE_HEADER_SIZE + TEXT_META_SIZE;
+    const int32_t remain   = bytes_to_write - written_bytes;
+    const int32_t copy_len = min(remain, TEXT_PAGE_DATA_SIZE);
+    memcpy(payload, text + written_bytes, copy_len);
+    if (copy_len < TEXT_PAGE_DATA_SIZE) {
+      memset(payload + copy_len, 0, TEXT_PAGE_DATA_SIZE - copy_len);
+    }
+
+    page_nums[i] = frame->page_num();
+    frame->mark_dirty();
+    disk_buffer_pool_->unpin_page(frame);
+
+    written_bytes += copy_len;
+  }
+
+  return RC::SUCCESS;
+}
+
+RC RecordFileHandler::read_text(const PageNum *page_nums, int32_t page_num_count, string &text)
+{
+  if (page_nums == nullptr || page_num_count <= 0) {
+    return RC::INVALID_ARGUMENT;
+  }
+
+  text.clear();
+  for (int32_t i = 0; i < page_num_count; i++) {
+    const PageNum page_num = page_nums[i];
+    if (page_num == BP_INVALID_PAGE_NUM) {
+      break;
+    }
+
+    Frame *frame = nullptr;
+    RC rc = disk_buffer_pool_->get_this_page(page_num, &frame);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to load text overflow page. page_num=%d, rc=%s", page_num, strrc(rc));
+      return rc;
+    }
+
+    const int32_t *meta_magic = reinterpret_cast<int32_t *>(frame->data() + PAGE_HEADER_SIZE);
+    if (*meta_magic != TEXT_OVERFLOW_MAGIC) {
+      disk_buffer_pool_->unpin_page(frame);
+      LOG_WARN("invalid text overflow page magic. page_num=%d, magic=%d", page_num, *meta_magic);
+      return RC::INTERNAL;
+    }
+
+    const char *payload = frame->data() + PAGE_HEADER_SIZE + TEXT_META_SIZE;
+    size_t      len     = strnlen(payload, TEXT_PAGE_DATA_SIZE);
+    text.append(payload, len);
+    const bool finished = len < static_cast<size_t>(TEXT_PAGE_DATA_SIZE);
+    disk_buffer_pool_->unpin_page(frame);
+
+    if (finished) {
+      break;
+    }
+  }
+
+  return RC::SUCCESS;
+}
+
+RC RecordFileHandler::delete_text(const PageNum *page_nums, int32_t page_num_count)
+{
+  if (page_nums == nullptr || page_num_count <= 0) {
+    return RC::INVALID_ARGUMENT;
+  }
+
+  for (int32_t i = 0; i < page_num_count; i++) {
+    const PageNum page_num = page_nums[i];
+    if (page_num == BP_INVALID_PAGE_NUM) {
+      break;
+    }
+    RC rc = disk_buffer_pool_->dispose_page(page_num);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to dispose text overflow page. page_num=%d, rc=%s", page_num, strrc(rc));
+      return rc;
+    }
+  }
+  return RC::SUCCESS;
 }
 
 ChunkFileScanner::~ChunkFileScanner() { close_scan(); }

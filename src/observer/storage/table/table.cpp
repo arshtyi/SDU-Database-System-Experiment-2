@@ -35,6 +35,16 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/heap_table_engine.h"
 #include "storage/table/lsm_table_engine.h"
 
+namespace {
+void fill_invalid_text_pages(char *field_data)
+{
+  auto *page_nums = reinterpret_cast<PageNum *>(field_data);
+  for (int i = 0; i < TEXT_PAGE_NUMS; i++) {
+    page_nums[i] = BP_INVALID_PAGE_NUM;
+  }
+}
+}  // namespace
+
 Table::~Table()
 {
   if (lob_handler_ != nullptr) {
@@ -174,7 +184,22 @@ RC Table::open(Db *db, const char *meta_file, const char *base_dir)
 
 RC Table::insert_record(Record &record)
 {
-  return engine_->insert_record(record);
+  RC rc = engine_->insert_record(record);
+  if (OB_SUCC(rc) || record.data() == nullptr) {
+    return rc;
+  }
+
+  for (const FieldMeta &field_meta : *table_meta_.field_metas()) {
+    if (!field_meta.visible() || field_meta.type() != AttrType::TEXTS) {
+      continue;
+    }
+    RC rc2 = delete_text(record.data() + field_meta.offset());
+    if (OB_FAIL(rc2)) {
+      LOG_WARN("failed to recycle text pages after insert failure. table=%s, field=%s, rc=%s",
+          table_meta_.name(), field_meta.name(), strrc(rc2));
+    }
+  }
+  return rc;
 }
 
 RC Table::insert_chunk(const Chunk& chunk)
@@ -255,6 +280,17 @@ RC Table::set_value_to_record(char *record_data, const Value &value, const Field
 {
   size_t       copy_len = field->len();
   const size_t data_len = value.length();
+  if (field->type() == AttrType::TEXTS) {
+    if (data_len > TEXT_MAX_BYTES) {
+      LOG_WARN("text value too long. table=%s, field=%s, len=%d", table_meta_.name(), field->name(), data_len);
+      return RC::IOERR_TOO_LONG;
+    }
+
+    char *field_data = record_data + field->offset();
+    fill_invalid_text_pages(field_data);
+    return write_text(value.data(), static_cast<int32_t>(data_len), field_data);
+  }
+
   if (field->type() == AttrType::CHARS) {
     if (copy_len > data_len) {
       copy_len = data_len + 1;
@@ -296,4 +332,41 @@ Index *Table::find_index_by_field(const char *field_name) const
 RC Table::sync()
 {
   return engine_->sync();
+}
+
+RC Table::write_text(const char *text, int32_t text_len, char *field_data)
+{
+  if (field_data == nullptr) {
+    return RC::INVALID_ARGUMENT;
+  }
+
+  auto *page_nums = reinterpret_cast<PageNum *>(field_data);
+  return engine_->write_text(text, text_len, page_nums, TEXT_PAGE_NUMS);
+}
+
+RC Table::read_text(const char *field_data, Value &value) const
+{
+  if (field_data == nullptr) {
+    return RC::INVALID_ARGUMENT;
+  }
+
+  const auto *page_nums = reinterpret_cast<const PageNum *>(field_data);
+  string      text;
+  RC          rc = engine_->read_text(page_nums, TEXT_PAGE_NUMS, text);
+  if (OB_FAIL(rc)) {
+    return rc;
+  }
+
+  value.set_text(text.c_str(), static_cast<int>(text.size()));
+  return RC::SUCCESS;
+}
+
+RC Table::delete_text(const char *field_data)
+{
+  if (field_data == nullptr) {
+    return RC::INVALID_ARGUMENT;
+  }
+
+  const auto *page_nums = reinterpret_cast<const PageNum *>(field_data);
+  return engine_->delete_text(page_nums, TEXT_PAGE_NUMS);
 }

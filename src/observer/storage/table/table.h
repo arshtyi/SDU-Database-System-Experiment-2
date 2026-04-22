@@ -120,6 +120,9 @@ public:
   LobFileHandler *lob_handler() const { return lob_handler_; }
 
   RC sync();
+  RC write_text(const char *text, int32_t text_len, char *field_data);
+  RC read_text(const char *field_data, Value &value) const;
+  RC delete_text(const char *field_data);
 
 private:
   RC set_value_to_record(char *record_data, const Value &value, const FieldMeta *field);

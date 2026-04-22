@@ -43,6 +43,12 @@ public:
   RC get_record_scanner(RecordScanner *&scanner, Trx *trx, ReadWriteMode mode) override;
   RC get_chunk_scanner(ChunkFileScanner &scanner, Trx *trx, ReadWriteMode mode) override { return RC::UNIMPLEMENTED; }
   RC visit_record(const RID &rid, function<bool(Record &)> visitor) override { return RC::UNIMPLEMENTED; }
+  RC write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count) override
+  {
+    return RC::UNIMPLEMENTED;
+  }
+  RC read_text(const PageNum *page_nums, int32_t page_num_count, string &text) override { return RC::UNIMPLEMENTED; }
+  RC delete_text(const PageNum *page_nums, int32_t page_num_count) override { return RC::UNIMPLEMENTED; }
   // TODO:
   RC     sync() override { return RC::SUCCESS; }
   Index *find_index(const char *index_name) const override { return nullptr; }

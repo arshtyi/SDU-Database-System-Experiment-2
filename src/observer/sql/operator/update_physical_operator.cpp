@@ -69,6 +69,9 @@ RC UpdatePhysicalOperator::open(Trx *trx)
 
     rc = trx_->update_record(table_, old_record, new_record);
     if (OB_FAIL(rc)) {
+      if (field_->type() == AttrType::TEXTS) {
+        table_->delete_text(new_record.data() + field_->offset());
+      }
       LOG_WARN("failed to update record by transaction. rid=%s, rc=%s", old_record.rid().to_string().c_str(), strrc(rc));
       return rc;
     }
@@ -102,6 +105,19 @@ RC UpdatePhysicalOperator::apply_value(Record &record)
       copy_len = value_.length() + 1;
     }
     memcpy(record.data() + field_offset, value_.data(), copy_len);
+  } else if (field_->type() == AttrType::TEXTS) {
+    memset(record.data() + field_offset, 0xFF, field_len);
+    if (value_.length() > TEXT_MAX_BYTES) {
+      LOG_WARN("text value too long for update. table=%s, field=%s, len=%d",
+          table_->name(), field_->name(), value_.length());
+      return RC::IOERR_TOO_LONG;
+    }
+    RC rc = table_->write_text(value_.data(), value_.length(), record.data() + field_offset);
+    if (OB_FAIL(rc)) {
+      LOG_WARN("failed to write text pages while updating record. table=%s, field=%s, rc=%s",
+          table_->name(), field_->name(), strrc(rc));
+      return rc;
+    }
   } else {
     memcpy(record.data() + field_offset, value_.data(), field_len);
   }

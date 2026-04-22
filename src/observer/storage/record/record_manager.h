@@ -411,6 +411,10 @@ public:
 
   RC visit_record(const RID &rid, function<bool(Record &)> updater);
 
+  RC write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count);
+  RC read_text(const PageNum *page_nums, int32_t page_num_count, string &text);
+  RC delete_text(const PageNum *page_nums, int32_t page_num_count);
+
 private:
   /**
    * @brief 初始化当前没有填满记录的页面，初始化free_pages_成员

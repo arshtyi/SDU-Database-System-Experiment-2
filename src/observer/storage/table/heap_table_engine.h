@@ -38,6 +38,9 @@ public:
   RC get_record_scanner(RecordScanner *&scanner, Trx *trx, ReadWriteMode mode) override;
   RC get_chunk_scanner(ChunkFileScanner &scanner, Trx *trx, ReadWriteMode mode) override;
   RC visit_record(const RID &rid, function<bool(Record &)> visitor) override;
+  RC write_text(const char *text, int32_t text_len, PageNum *page_nums, int32_t page_num_count) override;
+  RC read_text(const PageNum *page_nums, int32_t page_num_count, string &text) override;
+  RC delete_text(const PageNum *page_nums, int32_t page_num_count) override;
   RC sync() override;
 
   Index *find_index(const char *index_name) const override;
