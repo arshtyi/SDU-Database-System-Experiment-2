@@ -43,7 +43,7 @@
 #set smartquote(quotes: "\"\"")
 #set page(
     paper: "a4",
-    margin: (x: 35pt, y: 35pt),
+    margin: (x: 25pt, y: 25pt),
     footer: context {
         set align(center)
         set text(9pt)
@@ -91,16 +91,51 @@
     set text(size: 12pt)
     set table.cell(align: left + horizon, inset: 6pt)
     table(
-        columns: (1fr, 1fr, 1fr),
+        columns: (1fr,) * 3,
         table.cell(colspan: 2)[题目: #lab-title], [学号: #student-id],
         [日期: #date.display("[year].[month].[day]")], [班级: #class], [姓名: #student-name],
         [Email: #email],
-        [题目: #link("https://open.oceanbase.com/train/detail/5?questionId=600004", "miniob 2023")],
+        [题目: #link("https://open.oceanbase.com/train/detail/17?questionId=600060", "miniob 2025")],
         [贡献: 个人完成],
         [miniob: #link("https://github.com/oceanbase/miniob/tree/9f856a542decb6dc678650406af7d6e351940dab", "9f856a5")],
         [Source: #link("https://github.com/arshtyi/SDU-Database-System-Experiment-2", "github")],
-        [Mirror: #link("https://gitee.com/arshtyi/SDU-Database-System-Experiment-2", "gitee")],
+        [Mirror: #link("https://gitee.com/arshtyi/SDU-Database-System-Experiment-2", "gitee(private)")],
     )
+    let _commit-hash-table-rows(path: "asset/commit/hash.txt") = {
+        let rows = ()
+        for line in read(path).split("\n") {
+            let trimmed = line.trim()
+            if trimmed == "" {
+                continue
+            }
+            let columns = trimmed.split(",")
+            if columns.len() != 3 {
+                panic("invalid commit hash row: " + trimmed)
+            }
+            let exp = columns.at(0)
+            let exp-no = exp.replace("exp", "")
+            let branch = columns.at(1)
+            let branch-name = branch.replace("remotes/origin/", "").replace("origin/", "")
+            let hash = columns.at(2)
+            let hash-head = if hash.len() >= 7 { hash.slice(0, 7) } else { hash }
+            rows.push([#exp-no])
+            rows.push([#branch-name])
+            rows.push([
+                #link("https://github.com/arshtyi/SDU-Database-System-Experiment-2/tree/" + hash, "github:" + hash-head)
+                #h(0.8em)
+                #link("https://gitee.com/arshtyi/SDU-Database-System-Experiment-2/tree/" + hash, "gitee:" + hash-head)
+            ])
+        }
+        rows
+    }
+    set table.cell(align: center + horizon)
+    align(center)[
+        #table(
+            columns: 3,
+            [#sym.hash], [branch], [hash],
+            .._commit-hash-table-rows(),
+        )
+    ]
 }
 
 // Let line numbers be more visible and add highlight for changed lines
@@ -268,12 +303,12 @@
 //     target: figure.where(kind: image),
 // )
 
-= Experiment 1 <exp1>
+= Experiment 1#footnote[环境搭建:@zhihu-662734805.] <exp1>
 - 实验内容:
     + 完成从拉取源代码到构建运行数据库系统的全过程.
     + 熟悉#link("https://www.docker.com", "Docker")和#link("https://code.visualstudio.com", "VSCode")的使用,为后续的开发和调试打下基础.
     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800004&subQuestionName=basic", "题目1").
-== Setup#footnote[环境搭建:@zhihu-662734805.]
+== Setup
 拉取miniob:
 #zebraw(
     ```powershell
@@ -283,210 +318,20 @@
     rm -rf miniob
     ```,
 )
-将源代码推送至个人仓库#footnote[github#sym.arrow.r.bar gitee:@gitee-sync-help.],配置好进行提测#footnote[提测流程:@miniob-wiki #sym.hash 提测流程.]:
+将源代码推送至个人仓库,配置好进行提测:
 #figure(image("asset/fig/1/judge_result/1.png"), caption: [实验1提测结果])<fig:exp1_judge_result_1>
 == Docker
 挂载项目目录并查看容器:
 #zebraw(
     ```powershell
     docker run -d --name miniob --privileged -v "${PWD}:/root/miniob" oceanbase/miniob
-    docker ps
-    docker exec -it miniob bash
     ```,
 )
 #figure(image("asset/fig/1/run_result/1.png"), caption: [实验1容器环境])<fig:exp1_run_result_1>
 == VSCode Configuration
 === Tasks
 在VSCode中配置如下的Tasks:
-#zebraw(
-    ```json
-    {
-        "version": "2.0.0",
-        "tasks": [
-            {
-                "label": "CMake: Configure",
-                "type": "shell",
-                "command": "cmake",
-                "args": [
-                    "-S",
-                    "${workspaceFolder}",
-                    "-B",
-                    "${workspaceFolder}/build",
-                    "-DDEBUG=ON"
-                ],
-                "group": "build",
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared",
-                    "clear": true
-                }
-            },
-            {
-                "label": "CMake: Build",
-                "type": "shell",
-                "command": "cmake",
-                "args": [
-                    "--build",
-                    "${workspaceFolder}/build"
-                ],
-                "group": {
-                    "kind": "build",
-                    "isDefault": true
-                },
-                "dependsOn": [
-                    "CMake: Configure"
-                ],
-                "dependsOrder": "sequence",
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared",
-                    "clear": false
-                }
-            },
-            {
-                "label": "Observer: PID",
-                "type": "shell",
-                "command": "pgrep",
-                "args": [
-                    "-af",
-                    "observer"
-                ],
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared"
-                }
-            },
-            {
-                "label": "Observer: Run",
-                "type": "shell",
-                "command": "${workspaceFolder}/build/bin/observer",
-                "args": [
-                    "-s",
-                    "/root/miniob-test.sock",
-                    "-f",
-                    "${workspaceFolder}/etc/observer.ini"
-                ],
-                "options": {
-                    "cwd": "${workspaceFolder}"
-                },
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "dedicated"
-                }
-            },
-            {
-                "label": "Obclient: Run",
-                "type": "shell",
-                "command": "${workspaceFolder}/build/bin/obclient",
-                "args": [
-                    "-s",
-                    "/root/miniob-test.sock"
-                ],
-                "options": {
-                    "cwd": "${workspaceFolder}"
-                },
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "dedicated"
-                }
-            },
-            {
-                "label": "Test: All",
-                "type": "shell",
-                "command": "python3",
-                "args": [
-                    "${workspaceFolder}/test/case/miniob_test.py"
-                ],
-                "options": {
-                    "cwd": "${workspaceFolder}/test/case"
-                },
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared",
-                    "clear": false
-                }
-            },
-            {
-                "label": "Test: All (Report Only)",
-                "type": "shell",
-                "command": "python3",
-                "args": [
-                    "${workspaceFolder}/test/case/miniob_test.py",
-                    "--report-only"
-                ],
-                "options": {
-                    "cwd": "${workspaceFolder}/test/case"
-                },
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared",
-                    "clear": false
-                }
-            },
-            {
-                "label": "Test: Basic",
-                "type": "shell",
-                "command": "python3",
-                "args": [
-                    "${workspaceFolder}/test/case/miniob_test.py",
-                    "--test-cases=basic"
-                ],
-                "options": {
-                    "cwd": "${workspaceFolder}/test/case"
-                },
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared",
-                    "clear": false
-                }
-            },
-            {
-                "label": "Test: Case",
-                "type": "shell",
-                "command": "python3",
-                "args": [
-                    "${workspaceFolder}/test/case/miniob_test.py",
-                    "--test-cases=${input:miniobTestCase}"
-                ],
-                "options": {
-                    "cwd": "${workspaceFolder}/test/case"
-                },
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared",
-                    "clear": false
-                }
-            },
-            {
-                "label": "Test: Case (Report Only)",
-                "type": "shell",
-                "command": "python3",
-                "args": [
-                    "${workspaceFolder}/test/case/miniob_test.py",
-                    "--test-cases=${input:miniobTestCase}",
-                    "--report-only"
-                ],
-                "options": {
-                    "cwd": "${workspaceFolder}/test/case"
-                },
-                "presentation": {
-                    "reveal": "always",
-                    "panel": "shared",
-                    "clear": false
-                }
-            }
-        ],
-        "inputs": [
-            {
-                "id": "miniobTestCase",
-                "type": "promptString",
-                "description": "请输入要运行的测试用例名，多个用例用逗号分隔",
-                "default": "basic"
-            }
-        ]
-    }
-    ```,
-)
+#zebraw(raw(read("asset/.vscode/tasks.json"), block: true, lang: "json"))
 上述Tasks配置了以下几个任务:
 - CMake:
     + Configure: 配置CMake.
@@ -518,35 +363,7 @@
     + Case (Report Only): 仅运行测试脚本的指定测试用例并输出报告.
 === Debug
 在VSCode中配置Debug功能:
-#zebraw(
-    ```json
-    {
-      "version": "0.2.0",
-      "configurations": [
-        {
-          "name": "(gdb) Attach to observer",
-          "type": "cppdbg",
-          "request": "attach",
-          "program": "${workspaceFolder}/build/bin/observer",
-          "processId": "${command:pickProcess}",
-          "MIMode": "gdb",
-          "setupCommands": [
-            {
-              "description": "Enable GDB pretty printing",
-              "text": "-enable-pretty-printing",
-              "ignoreFailures": true
-            },
-            {
-              "description": "Use Intel syntax for disassembly",
-              "text": "-gdb-set disassembly-flavor intel",
-              "ignoreFailures": true
-            }
-          ]
-        }
-      ]
-    }
-    ```,
-)
+#zebraw(raw(read("asset/.vscode/launch.json"), block: true, lang: "json"))
 上述Debug配置了一个调试配置"(gdb) Attach to observer",可以通过输入Observer进程的PID来附加到Observer进程进行调试.
 == Build
 运行CMake: Build构建项目(可以手动先运行CMake: Configure):
@@ -576,7 +393,7 @@
 == Debug
 首先运行Observer: PID获得Observer进程的PID:
 #figure(image("asset/fig/1/run_result/5.png"), caption: [实验1调试结果])<fig:exp1_run_result_5>
-选择"(gdb) Attach to observer"并输入PID即可进入调试状态(出于方便,在`src/observer/net/plain_communicator.cpp`的```cpp PlainCommunicator::read_event(SessionEvent *&event)```打一断点)并运行```sql show tables;```测试:
+选择"(gdb) Attach to observer"并输入PID即可进入调试状态(在`src/observer/net/plain_communicator.cpp`的```cpp PlainCommunicator::read_event(SessionEvent *&event)```打断点)并测试```sql show tables;```:
 #figure(image("asset/fig/1/debug_result/1.png"), caption: [实验1调试结果])<fig:exp1_debug_result_1>
 == 总结
 @exp1 主要完成了从拉取源代码到构建运行数据库系统的全过程,熟悉了Docker和VSCode的使用,并且通过测试验证了基本功能的正确性.

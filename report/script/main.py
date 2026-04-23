@@ -9,8 +9,10 @@ from urllib.request import Request, urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RAW_ROOT = REPO_ROOT / "report" / "asset" / "raw"
+COMMIT_HASH_FILE = REPO_ROOT / "report" / "asset" / "commit" / "hash.txt"
 HIGHLIGHT_ROOT = REPO_ROOT / "report" / "highlight"
 DEFAULT_BRANCHES = ("exp2", "exp3", "exp4", "exp5")
+DEFAULT_HASH_BRANCHES = ("exp1", "exp2", "exp3", "exp4", "exp5")
 DEFAULT_HIGHLIGHT_URLS = (
     "https://raw.githubusercontent.com/SublimeText/PowerShell/master/PowerShell.sublime-syntax",
 )
@@ -260,6 +262,23 @@ def generate_raw_diff_files(branches: list[str], unified: int) -> None:
         )
 
 
+def latest_branch_commit(branch: str) -> tuple[str, str]:
+    branch_ref = resolve_branch_ref(branch)
+    commit = run_git("rev-parse", "--verify", branch_ref).strip()
+    return branch_ref, commit
+
+
+def generate_commit_hash_file(branches: list[str], output_file: Path = COMMIT_HASH_FILE) -> None:
+    lines: list[str] = []
+    for branch in branches:
+        branch_ref, commit = latest_branch_commit(branch)
+        lines.append(f"{branch},{branch_ref},{commit}")
+
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Saved {len(lines)} branch hashes to {output_file.relative_to(REPO_ROOT)}")
+
+
 def filename_from_url(url: str) -> str:
     name = Path(urlparse(url).path).name
     if not name:
@@ -344,6 +363,7 @@ def main() -> int:
     args = parser.parse_args()
     download_code = download_highlight_files(args.urls, args.output_dir)
     generate_raw_diff_files(args.branches, args.unified)
+    generate_commit_hash_file(list(DEFAULT_HASH_BRANCHES))
     return download_code
 
 

@@ -1,5 +1,5 @@
 # README
-用于下载高亮语法定义文件并生成diff
+用于下载高亮语法定义文件并生成diff等文本内容
 ## Usage
 ```txt
 usage: main.py [-h] [--branches BRANCHES [BRANCHES ...]] [--unified UNIFIED] [--output-dir OUTPUT_DIR] [urls ...]
