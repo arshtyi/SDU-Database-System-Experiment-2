@@ -10,6 +10,7 @@
 #let student-id = "202400130242"
 #let student-name = "彭靖轩"
 #let date = datetime.today()
+// #let date = datetime(year: 2026, month: 4, day: 18)
 #let lab-title = "数据库系统内核实验"
 #let class = "24智能"
 #let email = link("mailto:arshtyi@foxmail.com")
@@ -101,7 +102,7 @@
         [Source: #link("https://github.com/arshtyi/SDU-Database-System-Experiment-2", "github")],
         [Mirror: #link("https://gitee.com/arshtyi/SDU-Database-System-Experiment-2", "gitee(private)")],
     )
-    let _commit-hash-table-rows(path: "asset/commit/hash.txt") = {
+    let _commit-hash-table-rows(path: "commit/hash.txt") = {
         let rows = ()
         for line in read(path).split("\n") {
             let trimmed = line.trim()
@@ -218,39 +219,6 @@
     let cols = _normalize-numbering-cols(numbering)
     _jump-highlight-lines-core(cols)
 }
-#let zebraw-jump(..args) = {
-    let pos = args.pos()
-    if pos.len() != 1 {
-        panic("zebraw-jump requires exactly one code block argument")
-    }
-    let named = args.named()
-    let has-numbering = "numbering" in named
-    let has-numbering-offset = "numbering-offset" in named
-    let column = if "column" in named { named.at("column") } else { 0 }
-    if "column" in named {
-        named.remove("column")
-    }
-    if not has-numbering and not has-numbering-offset {
-        return zebraw(
-            ..named,
-            pos.at(0),
-        )
-    }
-    let numbering = if has-numbering { named.at("numbering") } else { none }
-    let hl = _jump-highlight-lines(numbering: numbering, column: column)
-    if hl.len() == 0 {
-        zebraw(
-            ..named,
-            pos.at(0),
-        )
-    } else {
-        zebraw(
-            ..named,
-            highlight-lines: hl,
-            pos.at(0),
-        )
-    }
-}
 #let _raw-file-key(filepath) = {
     let normalized = filepath.replace("\\", "/")
     normalized.replace("/", "-")
@@ -265,7 +233,7 @@
 }
 #let zebraw-file(filepath) = context {
     let heading-no = counter(heading).get().at(0, default: 0)
-    let raw-path = "asset/raw/" + str(heading-no) + "/" + _raw-file-key(filepath) + ".txt"
+    let raw-path = "raw/" + str(heading-no) + "/" + _raw-file-key(filepath) + ".txt"
     let data = read(raw-path)
     let lines = data.split("\n")
     if lines.len() < 2 {
@@ -290,6 +258,38 @@
         )
     }
 }
+#let zebraw-test(filepath) = {
+    let dirname = "test/"
+    let testfile = "case/test/" + filepath + ".test"
+    let resultfile = "case/result/" + filepath + ".result"
+    let _clamp-lines(text, tail-note: "...") = {
+        let lines = text.split("\n")
+        let compacted = lines.map(line => {
+            if line.len() > 70 {
+                tail-note
+            } else {
+                line
+            }
+        })
+        if lines.len() > 80 {
+            compacted.slice(0, 80).join("\n") + "\n" + tail-note
+        } else {
+            compacted.join("\n")
+        }
+    }
+    zebraw(
+        header: dirname + testfile,
+        raw(
+            _clamp-lines(read(testfile), tail-note: "-- ... extra content not shown"),
+            block: true,
+            lang: "sql",
+        ),
+    )
+    zebraw(
+        header: dirname + resultfile,
+        raw(_clamp-lines(read(resultfile)), block: true, lang: "text"),
+    )
+}
 
 // Define some units for the report
 #let (B, KB) = (
@@ -303,9 +303,9 @@
 //     target: figure.where(kind: image),
 // )
 
-= Experiment 1#footnote[环境搭建:@zhihu-662734805.] <exp1>
+= Experiment 1 <exp1>
 - 实验内容:
-    + 完成从拉取源代码到构建运行数据库系统的全过程.
+    + 完成从拉取源代码到构建运行数据库系统的全过程#footnote[环境搭建:@zhihu-662734805.].
     + 熟悉#link("https://www.docker.com", "Docker")和#link("https://code.visualstudio.com", "VSCode")的使用,为后续的开发和调试打下基础.
     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800004&subQuestionName=basic", "题目1").
 == Setup
@@ -318,20 +318,19 @@
     rm -rf miniob
     ```,
 )
-将源代码推送至个人仓库,配置好进行提测:
-#figure(image("asset/fig/1/judge_result/1.png"), caption: [实验1提测结果])<fig:exp1_judge_result_1>
+将源代码推送至个人仓库,配置好即可提测:
+#figure(image("fig/1/judge_result/1.png"), caption: [实验1提测结果])<fig:exp1_judge_result_1>
 == Docker
-挂载项目目录并查看容器:
+挂载目录并查看容器:
 #zebraw(
     ```powershell
     docker run -d --name miniob --privileged -v "${PWD}:/root/miniob" oceanbase/miniob
     ```,
 )
-#figure(image("asset/fig/1/run_result/1.png"), caption: [实验1容器环境])<fig:exp1_run_result_1>
 == VSCode Configuration
 === Tasks
 在VSCode中配置如下的Tasks:
-#zebraw(raw(read("asset/.vscode/tasks.json"), block: true, lang: "json"))
+#zebraw(raw(read(".vscode/tasks.json"), block: true, lang: "json"))
 上述Tasks配置了以下几个任务:
 - CMake:
     + Configure: 配置CMake.
@@ -363,44 +362,29 @@
     + Case (Report Only): 仅运行测试脚本的指定测试用例并输出报告.
 === Debug
 在VSCode中配置Debug功能:
-#zebraw(raw(read("asset/.vscode/launch.json"), block: true, lang: "json"))
+#zebraw(raw(read(".vscode/launch.json"), block: true, lang: "json"))
 上述Debug配置了一个调试配置"(gdb) Attach to observer",可以通过输入Observer进程的PID来附加到Observer进程进行调试.
 == Build
 运行CMake: Build构建项目(可以手动先运行CMake: Configure):
-#figure(image("asset/fig/1/build_result/1.png"), caption: [实验1构建结果])<fig:exp1_build_result_1>
+#figure(image("fig/1/build_result/1.png"), caption: [实验1构建结果])<fig:exp1_build_result_1>
 == Run
 运行Observer: Run启动服务端:
-#figure(image("asset/fig/1/run_result/2.png"), caption: [实验1服务端运行结果])<fig:exp1_run_result_2>
-接着运行Obclient: Run启动客户端:
-#figure(image("asset/fig/1/run_result/3.png"), caption: [实验1客户端运行结果])<fig:exp1_run_result_3>
-如此,完成了从拉取源代码到构建运行数据库系统.
+#figure(image("fig/1/run_result/1.png"), caption: [实验1服务端运行结果])<fig:exp1_run_result_2>
+运行Obclient: Run启动客户端:
+#figure(image("fig/1/run_result/2.png"), caption: [实验1客户端运行结果])<fig:exp1_run_result_3>
 == Test
-使用下述命令测试数据库系统的基本功能:
-#zebraw(
-    ```sql
-    show tables;
-    desc t;
-    create table t (id int, name char(255));
-    create index t_id on t (id);
-    insert into t values (1, 'aaa');
-    update t set name = 'bbb' where id = 1;
-    delete from t where id = 1;
-    select * from t;
-    select id, name from t;
-    ```,
-)
-#figure(image("asset/fig/1/run_result/4.png"), caption: [实验1测试结果])<fig:exp1_run_result_4>
+使用内置测试集:
+#zebraw-test("basic")
 == Debug
 首先运行Observer: PID获得Observer进程的PID:
-#figure(image("asset/fig/1/run_result/5.png"), caption: [实验1调试结果])<fig:exp1_run_result_5>
-选择"(gdb) Attach to observer"并输入PID即可进入调试状态(在`src/observer/net/plain_communicator.cpp`的```cpp PlainCommunicator::read_event(SessionEvent *&event)```打断点)并测试```sql show tables;```:
-#figure(image("asset/fig/1/debug_result/1.png"), caption: [实验1调试结果])<fig:exp1_debug_result_1>
+#figure(image("fig/1/run_result/3.png"), caption: [实验1 Observer PID])<fig:exp1_run_result_4>
+选择"(gdb) Attach to observer"并输入`PID`即可进入调试状态(在`src/observer/net/plain_communicator.cpp`的```cpp PlainCommunicator::read_event(SessionEvent *&event)```打断点)并测试```sql show tables;```:
+#figure(image("fig/1/debug_result/1.png"), caption: [实验1调试结果])<fig:exp1_debug_result_1>
 == 总结
 @exp1 主要完成了从拉取源代码到构建运行数据库系统的全过程,熟悉了Docker和VSCode的使用,并且通过测试验证了基本功能的正确性.
 
 = Experiment 2 <exp2>
 - 基于@exp1.
-
 - 实验内容:
     + 实现删除表功能,包括删除元数据文件、数据文件、LOB文件及索引等.
     + 增加日期类型,支持日期的存储、比较、字符串化、解析校验、隐式类型转换等功能.
@@ -422,20 +406,10 @@
     zebraw-file("src/observer/sql/executor/command_executor.cpp")
 }
 === Build
-编译配置同@exp1, 直接运行CMake: Build即可.
-随后运行Observer: Run和Obclient: Run启动服务端和客户端.
+编译配置同@exp1, 直接运行CMake: Build即可.随后运行Observer: Run和Obclient: Run启动服务端和客户端.
 === Test
-使用下述命令测试删除表功能:
-#zebraw(
-    ```sql
-    create table t(id int, age int);
-    create table t(id int, name char);
-    drop table t;
-    create table t(id int, name char);
-    ```,
-)
-#figure(image("asset/fig/2/run_result/1.png"), caption: [实验2 - 1测试结果])<fig:exp2_run_result_1>
-@fig:exp2_run_result_1 证明了删除表功能的正确性:成功创建了表t,删除后表t的结构被修改,再次创建表t时没有报错,说明之前的表t已经被成功删除了.
+使用内置测试集:
+#zebraw-test("primary-drop-table")
 == Date
 === 实现
 #{
@@ -460,28 +434,13 @@
     zebraw-file("src/observer/storage/common/codec.h")
 }
 === Build
-编译配置同@exp1, 直接运行CMake: Build即可.
-接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
 === Test
-使用下述命令测试日期类型:
-#zebraw(
-    ```sql
-    create table t(id int, d date);
-    insert into t values(1, '1970-01-01');
-    insert into t values(2, '2400-02-29');
-    insert into t values(3, '2023-02-29');
-    select * from t where d >= '2000-01-01';
-    create index idx_d on t(d);
-    select * from t where d = '2400-02-29';
-    select * from t where d = '2024-13-01';
-    drop table t;
-    ```,
-)
-#figure(image("asset/fig/2/run_result/2.png"), caption: [实验2 - 2测试结果])<fig:exp2_run_result_2>
-@fig:exp2_run_result_2 证明了日期类型的正确性:成功创建了表t并插入了日期数据,查询语句正确返回了符合条件的行,说明日期的比较和索引功能正常,同时不合法的日期被正确拒绝了.
+使用内置测试集:
+#zebraw-test("primary-date")
 == 提测
 推送至仓库并提测:
-#figure(image("asset/fig/2/judge_result/1.png"), caption: [实验2提测结果])<fig:exp2_judge_result_2>
+#figure(image("fig/2/judge_result/1.png"), caption: [实验2提测结果])<fig:exp2_judge_result_2>
 == 总结
 @exp2 主要实现了删除表功能和日期类型,并且在此过程中熟悉了数据库系统中DDL操作和数据类型实现的相关知识,同时通过测试验证了功能的正确性.
 
@@ -518,35 +477,13 @@
     zebraw-file("src/observer/storage/trx/vacuous_trx.cpp")
 }
 == Build
-编译配置同@exp1, 直接运行CMake: Build即可.
-接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
 == Test
-使用下述命令测试:
-#zebraw(
-    ```sql
-    CREATE TABLE Update_table_1(id int, t_name char, col1 int, col2 int);
-    CREATE INDEX index_id on Update_table_1(id);
-    INSERT INTO Update_table_1 VALUES (1,'N1',1,1);
-    INSERT INTO Update_table_1 VALUES (2,'N2',1,1);
-    INSERT INTO Update_table_1 VALUES (3,'N3',2,1);
-    UPDATE Update_table_1 SET t_name='N01' WHERE id=1;
-    UPDATE Update_table_1 SET col2=0 WHERE col1=1;
-    UPDATE Update_table_1 SET id=4 WHERE t_name='N3';
-    UPDATE Update_table_1 SET col1=0;
-    UPDATE Update_table_1 SET t_name='N02' WHERE col1=0 AND col2=0;
-    UPDATE Update_table_2 SET t_name='N01' WHERE id=1;
-    UPDATE Update_table_1 SET t_name_false='N01' WHERE id=1;
-    UPDATE Update_table_1 SET t_name='N01' WHERE id_false=1;
-    UPDATE Update_table_1 SET t_name='N01' WHERE id=100;
-    UPDATE Update_table_1 SET col1='N01' WHERE id=1;
-    SELECT * FROM Update_table_1;
-    ```,
-)
-#figure(image("asset/fig/3/run_result/1.png"), caption: [实验3测试结果])<fig:exp3_run_result_1>
-@fig:exp3_run_result_1 证明了更新行数据功能的正确性:成功创建了表Update_table_1并插入了数据,多条更新语句正确执行并修改了符合条件的行,同时不合法的更新语句被正确拒绝了.
+使用内置测试集:
+#zebraw-test("primary-update")
 == 提测
 推送至仓库并提测:
-#figure(image("asset/fig/3/judge_result/1.png"), caption: [实验3提测结果])<fig:exp3_judge_result_1>
+#figure(image("fig/3/judge_result/1.png"), caption: [实验3提测结果])<fig:exp3_judge_result_1>
 == 总结
 @exp3 主要实现了更新行数据功能,并且在此过程中熟悉了数据库系统中DML操作的相关知识,同时通过测试验证了功能的正确性.
 
@@ -566,55 +503,13 @@
     zebraw-file("src/observer/sql/parser/yacc_sql.y")
 }
 == Build
-编译配置同@exp1, 直接运行CMake: Build即可.
-// #figure(image("asset/fig/4/build_result/1.png"), caption: [实验4构建结果])<fig:exp4_build_result_1>
-接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
 == Test
-使用下述命令测试:
-#zebraw(
-    ```sql
-    CREATE TABLE join_table_1(id int, name char);
-    CREATE TABLE join_table_2(id int, num int);
-    CREATE TABLE join_table_3(id int, num2 int);
-    create table join_table_empty_1(id int, num_empty_1 int);
-    create table join_table_empty_2(id int, num_empty_2 int);
-    INSERT INTO join_table_1 VALUES (1, 'a');
-    INSERT INTO join_table_1 VALUES (2, 'b');
-    INSERT INTO join_table_1 VALUES (3, 'c');
-    INSERT INTO join_table_2 VALUES (1, 2);
-    INSERT INTO join_table_2 VALUES (2, 15);
-    INSERT INTO join_table_3 VALUES (1, 120);
-    INSERT INTO join_table_3 VALUES (3, 800);
-    Select * from join_table_1 inner join join_table_2 on join_table_1.name<join_table_2.id and join_table_1.id=join_table_2.id;
-    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id;
-    Select join_table_1.name from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id;
-    Select join_table_2.num from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id;
-    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id inner join join_table_3 on join_table_1.id=join_table_3.id;
-    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id and join_table_2.num>13 where join_table_1.name='b';
-    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id and join_table_2.num>13 where join_table_1.name='a';
-    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.id and join_table_2.num>23 where join_table_1.name='b';
-    Select * from join_table_1 inner join join_table_empty_1 on join_table_1.name=join_table_2.num;
-    Select * from join_table_1 inner join join_table_2 on join_table_1.id=join_table_2.num and join_table_2.num>13 where join_table_1.name='a';
-    Select * from join_table_1 inner join join_table_2 on join_table_2.id>join_table_1.name;
-    select * from join_table_1 inner join join_table_empty_1 on join_table_1.id=join_table_empty_1.id;
-    select * from join_table_empty_1 inner join join_table_1 on join_table_empty_1.id=join_table_1.id;
-    select * from join_table_empty_1 inner join join_table_empty_2 on join_table_empty_1.id = join_table_empty_2.id;
-    select * from join_table_1 inner join join_table_2 on join_table_1.id = join_table_2.id inner join join_table_empty_1 on join_table_1.id=join_table_empty_1.id;
-    select * from join_table_empty_1 inner join join_table_1 on join_table_empty_1.id=join_table_1.id inner join join_table_2 on join_table_1.id=join_table_2.id;
-    create table join_table_large_1(id int, num1 int);
-    create table join_table_large_2(id int, num2 int);
-    create table join_table_large_3(id int, num3 int);
-    create table join_table_large_4(id int, num4 int);
-    create table join_table_large_5(id int, num5 int);
-    create table join_table_large_6(id int, num6 int);
-    select * from join_table_large_1 inner join join_table_large_2 on join_table_large_1.id=join_table_large_2.id inner join join_table_large_3 on join_table_large_1.id=join_table_large_3.id inner join join_table_large_4 on join_table_large_3.id=join_table_large_4.id inner join join_table_large_5 on 1=1 inner join join_table_large_6 on join_table_large_5.id=join_table_large_6.id where join_table_large_3.num3 <10 and join_table_large_5.num5>90;
-    ```,
-)
-#figure(image("asset/fig/4/run_result/1.png"), caption: [实验4测试结果])<fig:exp4_run_result_1>
-@fig:exp4_run_result_1 证明了JOIN功能的正确性:成功创建了多张表并插入了数据,多条包含JOIN的查询语句正确执行并返回了预期结果,同时不合法的JOIN语句被正确拒绝.
+使用内置测试集:
+#zebraw-test("primary-join-tables")
 == 提测
 推送至仓库并提测:
-#figure(image("asset/fig/4/judge_result/1.png"), caption: [实验4提测结果])<fig:exp4_judge_result_1>
+#figure(image("fig/4/judge_result/1.png"), caption: [实验4提测结果])<fig:exp4_judge_result_1>
 == 总结
 @exp4 主要实现了基于JOIN的多表查询功能,并且在此过程中熟悉了数据库系统中多表查询的相关知识,同时通过测试验证了功能的正确性.
 
@@ -658,41 +553,22 @@
     zebraw-file("src/observer/net/plain_communicator.cpp")
 }
 == Build
-编译配置同@exp1, 直接运行CMake: Build即可.
-// #figure(image("asset/fig/5/build_result/1.png"), caption: [实验5构建结果])<fig:exp5_build_result_1>
-接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
 == Test
-使用下述命令测试:
-#zebraw(
-    ```sql
-    create table text_table(id int, info text);
-    insert into text_table values (1,'this is a very very long string');
-    insert into text_table values (2,'this is a very very long string2');
-    insert into text_table values (3,'this is a very very long string3');
-    select * from text_table;
-    delete from text_table where id=1;
-    select * from text_table;
-    UPDATE text_table set info='a tmp data' where id = 2;
-    select * from text_table;
-    insert into text_table values (4,'this is a very very long string ..... pad1');
-    select * from text_table;
-    insert into text_table values (5,'this is a very very long string ...... pad');
-    select * from text_table;
-    ```,
-)
-#figure(image("asset/fig/5/run_result/1.png"), caption: [实验5测试结果])<fig:exp5_run_result_1>
-@fig:exp5_run_result_1 证明了TEXT类型功能的正确性:成功创建了包含TEXT类型的表并插入了数据,多条查询语句正确执行并返回了预期结果,同时更新和删除操作也正确执行并修改了数据.
+使用内置测试集:
+#zebraw-test("primary-text")
 == 提测
 推送至仓库并提测:
-#figure(image("asset/fig/5/judge_result/1.png"), caption: [实验5提测结果])<fig:exp5_judge_result_1>
+#figure(image("fig/5/judge_result/1.png"), caption: [实验5提测结果])<fig:exp5_judge_result_1>
 == 总结
 @exp5 主要实现了TEXT数据类型支持,包括语法解析、类型定义、接口设计和溢出处理等方面的工作,并且在此过程中熟悉了数据库系统中大文本数据的存储和管理相关知识,同时通过测试验证了功能的正确性.
 
-#pagebreak()
-#context {
+#{
+    pagebreak()
     show "“": ["]
     show "”": ["]
     show "‘": [']
     show "’": [']
-    bibliography("asset/ref/ref.yml", style: "ieee", title: [References], full: true)
+    show link: it => text(fill: black, style: "italic", it.body)
+    bibliography("ref/ref.yml", style: "ieee", title: [References], full: true)
 }

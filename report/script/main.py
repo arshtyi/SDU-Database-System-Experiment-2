@@ -12,8 +12,8 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RAW_ROOT = REPO_ROOT / "report" / "asset" / "raw"
-COMMIT_HASH_FILE = REPO_ROOT / "report" / "asset" / "commit" / "hash.txt"
+RAW_ROOT = REPO_ROOT / "report" / "raw"
+COMMIT_HASH_FILE = REPO_ROOT / "report" / "commit" / "hash.txt"
 HIGHLIGHT_ROOT = REPO_ROOT / "report" / "highlight"
 
 DEFAULT_BRANCHES = ("exp2", "exp3", "exp4", "exp5")

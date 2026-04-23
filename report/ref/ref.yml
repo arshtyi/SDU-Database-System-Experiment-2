@@ -38,11 +38,11 @@ docker-docs:
   title: Docker Documentation
   author:
     - name: Docker Inc.
-  url: https://docs.docker.com/
+  url: https://docs.docker.com
 
 typst-docs:
   type: Web
   title: Typst Documentation
   author:
     - name: Typst
-  url: https://typst.app/docs/
+  url: https://typst.app/docs
