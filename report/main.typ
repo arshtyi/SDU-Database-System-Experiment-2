@@ -423,7 +423,6 @@
 }
 === Build
 编译配置同@exp1, 直接运行CMake: Build即可.
-// #figure(image("asset/fig/2/build_result/1.png"), caption: [实验2 - 1构建结果])<fig:exp2_build_result_1>
 随后运行Observer: Run和Obclient: Run启动服务端和客户端.
 === Test
 使用下述命令测试删除表功能:
@@ -437,9 +436,6 @@
 )
 #figure(image("asset/fig/2/run_result/1.png"), caption: [实验2 - 1测试结果])<fig:exp2_run_result_1>
 @fig:exp2_run_result_1 证明了删除表功能的正确性:成功创建了表t,删除后表t的结构被修改,再次创建表t时没有报错,说明之前的表t已经被成功删除了.
-=== 提测
-推送至仓库并提测:
-#figure(image("asset/fig/2/judge_result/1.png"), caption: [实验2 - 1提测结果])<fig:exp2_judge_result_1>
 == Date
 === 实现
 #{
@@ -459,12 +455,12 @@
     zebraw-file("src/observer/sql/parser/lex_sql.l")
     zebraw-file("src/observer/sql/parser/yacc_sql.y")
     [最后增加日期类型的比较和编码支持:]
+    zebraw-file("src/observer/sql/optimizer/physical_plan_generator.cpp")
     zebraw-file("src/observer/sql/expr/expression.cpp")
     zebraw-file("src/observer/storage/common/codec.h")
 }
 === Build
 编译配置同@exp1, 直接运行CMake: Build即可.
-// #figure(image("asset/fig/2/build_result/2.png"), caption: [实验2 - 2构建结果])<fig:exp2_build_result_2>
 接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
 === Test
 使用下述命令测试日期类型:
@@ -483,9 +479,9 @@
 )
 #figure(image("asset/fig/2/run_result/2.png"), caption: [实验2 - 2测试结果])<fig:exp2_run_result_2>
 @fig:exp2_run_result_2 证明了日期类型的正确性:成功创建了表t并插入了日期数据,查询语句正确返回了符合条件的行,说明日期的比较和索引功能正常,同时不合法的日期被正确拒绝了.
-=== 提测
+== 提测
 推送至仓库并提测:
-#figure(image("asset/fig/2/judge_result/2.png"), caption: [实验2 - 2提测结果])<fig:exp2_judge_result_2>
+#figure(image("asset/fig/2/judge_result/1.png"), caption: [实验2提测结果])<fig:exp2_judge_result_2>
 == 总结
 @exp2 主要实现了删除表功能和日期类型,并且在此过程中熟悉了数据库系统中DDL操作和数据类型实现的相关知识,同时通过测试验证了功能的正确性.
 
@@ -523,7 +519,6 @@
 }
 == Build
 编译配置同@exp1, 直接运行CMake: Build即可.
-// #figure(image("asset/fig/3/build_reslut/1.png"), caption: [实验3构建结果])<fig:exp3_build_result_1>
 接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
 == Test
 使用下述命令测试:
