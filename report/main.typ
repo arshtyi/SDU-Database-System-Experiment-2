@@ -386,20 +386,22 @@
 = Experiment 2 <exp2>
 - 基于@exp1.
 - 实验内容:
-    + 实现删除表功能,包括删除元数据文件、数据文件、LOB文件及索引等.
-    + 增加日期类型,支持日期的存储、比较、字符串化、解析校验、隐式类型转换等功能.
+    + 实现删除表功能,包括删除元数据文件,数据文件,LOB文件及索引等.
+    + 增加日期类型,支持日期的存储,比较,字符串化,解析校验,隐式类型转换等功能.
     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800006&subQuestionName=drop-table", "题目3")和#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800005&subQuestionName=date", "题目2").
 == Drop Table
+=== 原理
+删除表属于DDL操作,核心目标是把表从数据库目录中彻底摘除.实现时需要先检查表是否存在,再关闭并移除表对象,最后删除元数据,数据文件,LOB文件以及相关索引文件,避免后续启动时仍能加载到残留表结构.
 === 实现
 #{
-    [实现删除功能,包括删除元数据文件、数据文件、LOB文件及索引等:]
+    [存储层接口:]
     zebraw-file("src/observer/storage/db/db.h")
     zebraw-file("src/observer/storage/db/db.cpp")
-    [然后增加删除表的stmt:]
+    [语句层支持:]
     zebraw-file("src/observer/sql/stmt/drop_table_stmt.h")
     zebraw-file("src/observer/sql/stmt/drop_table_stmt.cpp")
     zebraw-file("src/observer/sql/stmt/stmt.cpp")
-    [最后增加删除表的executor:]
+    [执行层支持:]
     zebraw-file("src/observer/sql/executor/drop_table_executor.h")
     zebraw-file("src/observer/sql/executor/drop_table_executor.cpp")
     zebraw-file("src/observer/sql/executor/help_executor.h")
@@ -410,25 +412,28 @@
 === Test
 使用内置测试集:
 #zebraw-test("primary-drop-table")
+测试覆盖了删除已存在表,删除后再次访问以及异常表名等场景,结果符合预期.
 == Date
+=== 原理
+DATE类型需要同时满足存储紧凑,比较正确和输入校验明确.本实验将日期编码为4字节整数`YYYYMMDD`,这样大小比较可以直接复用整数顺序,同时在构造和转换阶段检查月份,天数和闰年规则,保证非法日期不会进入存储层.
 === 实现
 #{
-    [增加类型枚举与注册:]
+    [类型枚举与注册:]
     zebraw-file("src/observer/common/type/attr_type.h")
     zebraw-file("src/observer/common/type/attr_type.cpp")
     zebraw-file("src/observer/common/type/data_type.cpp")
-    [实现类型(4字节 *YYYYMMDD* 存储、比较、字符串化、解析校验、闰年):]
+    [类型行为实现(4字节 *YYYYMMDD* 存储,比较,字符串化,解析校验,闰年):]
     zebraw-file("src/observer/common/type/date_type.h")
     zebraw-file("src/observer/common/type/date_type.cpp")
-    [提供Value支持:]
+    [Value封装:]
     zebraw-file("src/observer/common/value.h")
     zebraw-file("src/observer/common/value.cpp")
-    [增加隐式类型转换支持:]
+    [隐式类型转换:]
     zebraw-file("src/observer/common/type/char_type.cpp")
-    [接着修改词法分析器和语法分析器支持日期类型:]
+    [词法与语法支持:]
     zebraw-file("src/observer/sql/parser/lex_sql.l")
     zebraw-file("src/observer/sql/parser/yacc_sql.y")
-    [最后增加日期类型的比较和编码支持:]
+    [比较与编码支持:]
     zebraw-file("src/observer/sql/optimizer/physical_plan_generator.cpp")
     zebraw-file("src/observer/sql/expr/expression.cpp")
     zebraw-file("src/observer/storage/common/codec.h")
@@ -438,24 +443,27 @@
 === Test
 使用内置测试集:
 #zebraw-test("primary-date")
+测试覆盖了合法日期,非法日期,闰年边界和字符串转换等场景,结果符合预期.
 == 提测
 推送至仓库并提测:
 #figure(image("fig/2/judge_result/1.png"), caption: [实验2提测结果])<fig:exp2_judge_result_2>
 == 总结
-@exp2 主要实现了删除表功能和日期类型,并且在此过程中熟悉了数据库系统中DDL操作和数据类型实现的相关知识,同时通过测试验证了功能的正确性.
+@exp2 主要实现了删除表功能和DATE类型支持,理解了DDL对象清理流程以及新数据类型从解析,校验,编码到比较的完整接入方式.
 
 = Experiment 3 <exp3>
 - 基于@exp2.
 - 实验内容:
     + 实现更新行数据功能,支持根据条件更新表中的数据.
     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800007&subQuestionName=update", "题目4").
+== 原理
+UPDATE可以看作"扫描满足条件的记录,计算新值,再写回记录"的流水线.语句层负责解析目标表,字段和值表达式,计划层把更新节点挂在查询子计划之后,物理算子逐条读取子算子输出的记录并调用表引擎和事务接口完成写回.
 == 实现
 #{
-    [完成语句上的支持:]
+    [语句层支持:]
     zebraw-file("src/observer/sql/stmt/update_stmt.h")
     zebraw-file("src/observer/sql/stmt/update_stmt.cpp")
     zebraw-file("src/observer/sql/stmt/stmt.cpp")
-    [接着增加逻辑算子和物理算子支持:]
+    [计划与执行算子:]
     zebraw-file("src/observer/sql/operator/logical_operator.h")
     zebraw-file("src/observer/sql/operator/logical_operator.cpp")
     zebraw-file("src/observer/sql/operator/physical_operator.h")
@@ -468,7 +476,7 @@
     zebraw-file("src/observer/sql/optimizer/logical_plan_generator.cpp")
     zebraw-file("src/observer/sql/optimizer/physical_plan_generator.h")
     zebraw-file("src/observer/sql/optimizer/physical_plan_generator.cpp")
-    [最后增加表和事务的更新接口支持:]
+    [表引擎与事务接口:]
     zebraw-file("src/observer/storage/table/heap_table_engine.h")
     zebraw-file("src/observer/storage/table/heap_table_engine.cpp")
     zebraw-file("src/observer/storage/trx/mvcc_trx.h")
@@ -481,24 +489,27 @@
 == Test
 使用内置测试集:
 #zebraw-test("primary-update")
+测试覆盖了条件更新,类型检查,多行写回和空匹配等场景,结果符合预期.
 == 提测
 推送至仓库并提测:
 #figure(image("fig/3/judge_result/1.png"), caption: [实验3提测结果])<fig:exp3_judge_result_1>
 == 总结
-@exp3 主要实现了更新行数据功能,并且在此过程中熟悉了数据库系统中DML操作的相关知识,同时通过测试验证了功能的正确性.
+@exp3 主要实现了更新行数据功能,理解了UPDATE从语法树,逻辑计划,物理算子到表引擎写回的DML执行链路.
 
 = Experiment 4 <exp4>
 - 基于@exp3.
 - 实验内容:
     + 实现多表连接查询功能,支持使用JOIN关键字连接多张表进行查询.
     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800010&subQuestionName=join-tables", "题目7").
+== 原理
+JOIN语法本质上是对`FROM`子句中多表关系的显式描述.本实验主要补齐解析层支持,将`table join table on condition`转换为已有的多表查询结构,并把`ON`条件合并到查询条件中,后续执行仍可复用原有的笛卡尔积和谓词过滤流程.
 == 实现
 #{
-    [先实现`char`类型的强转换支持#footnote[见@miniob-wiki #sym.hash 类型转换.]:]
+    [类型转换支持#footnote[见@miniob-wiki #sym.hash 类型转换.]:]
     zebraw-file("src/observer/common/type/char_type.cpp")
-    [接着给出对from子句中join关系的描述支持:]
+    [`FROM`关系描述:]
     zebraw-file("src/observer/sql/parser/parse_defs.h")
-    [最后修改词法分析器和语法分析器支持JOIN语句:]
+    [词法与语法支持:]
     zebraw-file("src/observer/sql/parser/lex_sql.l")
     zebraw-file("src/observer/sql/parser/yacc_sql.y")
 }
@@ -507,35 +518,37 @@
 == Test
 使用内置测试集:
 #zebraw-test("primary-join-tables")
+测试覆盖了JOIN语法解析,连接条件过滤和多表字段引用等场景,结果符合预期.
 == 提测
 推送至仓库并提测:
 #figure(image("fig/4/judge_result/1.png"), caption: [实验4提测结果])<fig:exp4_judge_result_1>
 == 总结
-@exp4 主要实现了基于JOIN的多表查询功能,并且在此过程中熟悉了数据库系统中多表查询的相关知识,同时通过测试验证了功能的正确性.
+@exp4 主要实现了基于JOIN的多表查询功能,理解了显式JOIN语法如何映射到已有多表查询框架和条件过滤流程.
 
 = Experiment 5 <exp5>
 - 基于@exp4.
 - 实验内容:
     + 实现大文本类型支持,增加TEXT数据类型用于存储大文本数据.
     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800017&subQuestionName=text", "题目16").
+== 原理
+TEXT数据通常超过普通记录页中字段的固定长度限制,因此不能只按`char`字段内联保存.本实验采用溢出存储思路:记录中保存可定位大文本内容的引用信息,真正的大文本数据交给记录管理器和表引擎读写,从而兼顾记录格式稳定性和大字段容量.
 == 实现
 #{
     [语法支持:]
     zebraw-file("src/observer/sql/parser/lex_sql.l")
     zebraw-file("src/observer/sql/parser/yacc_sql.y")
-    [增加类型支持:]
+    [类型系统支持:]
     zebraw-file("src/observer/common/type/attr_type.h")
     zebraw-file("src/observer/common/type/attr_type.cpp")
-    [注意保持旧类型枚举值兼容:]
     zebraw-file("src/observer/common/type/char_type.h")
     zebraw-file("src/observer/common/type/char_type.cpp")
     zebraw-file("src/observer/common/type/data_type.cpp")
     zebraw-file("src/observer/common/value.h")
     zebraw-file("src/observer/common/value.cpp")
-    [溢出实现:]
+    [溢出存储实现:]
     zebraw-file("src/observer/storage/record/record_manager.h")
     zebraw-file("src/observer/storage/record/record_manager.cpp")
-    [接口实现+功能补充:]
+    [表引擎与更新路径:]
     zebraw-file("src/observer/storage/table/table_engine.h")
     zebraw-file("src/observer/storage/table/heap_table_engine.h")
     zebraw-file("src/observer/storage/table/heap_table_engine.cpp")
@@ -543,13 +556,13 @@
     zebraw-file("src/observer/storage/table/table.h")
     zebraw-file("src/observer/storage/table/table.cpp")
     zebraw-file("src/observer/sql/operator/update_physical_operator.cpp")
-    [读取:]
+    [读取路径:]
     zebraw-file("src/observer/sql/expr/tuple.h")
     [兼容性调整:]
     zebraw-file("src/observer/sql/expr/expression.cpp")
     zebraw-file("src/observer/sql/executor/load_data_executor.cpp")
     zebraw-file("src/observer/storage/common/codec.h")
-    [最后调整协议防止$64 #KB$请求被截断#footnote[@zhihu-671981637, #link("https://github.com/oceanbase/miniob/pull/28", "miniob#28"), #link("https://github.com/oceanbase/miniob/pull/559", "miniob#559").]:]
+    [协议缓冲区调整#footnote[@zhihu-671981637, #link("https://github.com/oceanbase/miniob/pull/28", "miniob#28"), #link("https://github.com/oceanbase/miniob/pull/559", "miniob#559").]:]
     zebraw-file("src/observer/net/plain_communicator.cpp")
 }
 == Build
@@ -557,11 +570,12 @@
 == Test
 使用内置测试集:
 #zebraw-test("primary-text")
+测试覆盖了TEXT建表,插入,查询,更新和较长文本传输等场景,结果符合预期.
 == 提测
 推送至仓库并提测:
 #figure(image("fig/5/judge_result/1.png"), caption: [实验5提测结果])<fig:exp5_judge_result_1>
 == 总结
-@exp5 主要实现了TEXT数据类型支持,包括语法解析、类型定义、接口设计和溢出处理等方面的工作,并且在此过程中熟悉了数据库系统中大文本数据的存储和管理相关知识,同时通过测试验证了功能的正确性.
+@exp5 主要实现了TEXT数据类型支持,理解了大字段从内联记录到溢出存储的设计取舍,并补齐了语法解析,类型系统,表接口和协议缓冲区等相关路径.
 
 #{
     pagebreak()
