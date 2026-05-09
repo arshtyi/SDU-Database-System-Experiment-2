@@ -3,3 +3,4 @@
 #import "@preview/numbly:0.1.0": numbly
 #import "@preview/zebraw:0.6.1": *
 #import "@preview/headcount:0.1.0": dependent-numbering, reset-counter
+#import "@preview/zero:0.6.1": num, set-num, set-unit, zi

@@ -3,3 +3,6 @@
 *.sublime-syntax
 
 .venv/
+
+raw/
+commit/

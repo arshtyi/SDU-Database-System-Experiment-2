@@ -5,9 +5,7 @@ on:
     branches:
       - main
     paths:
-      - report/**
-  schedule:
-    - cron: "0 2 * * 0"
+      - "report/**"
   workflow_dispatch:
     inputs:
       release:
@@ -31,13 +29,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
 
       - name: Run highlight script with uv
-        working-directory: report/highlight/script
+        working-directory: report/script
         run: uv run main.py
 
       - name: Setup Fontist
@@ -64,7 +64,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true') }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release == 'true' }}
     permissions:
       contents: write
 

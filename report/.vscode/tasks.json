@@ -1,0 +1,185 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CMake: Configure",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "-S",
+        "${workspaceFolder}",
+        "-B",
+        "${workspaceFolder}/build",
+        "-DDEBUG=ON"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "CMake: Build",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "${workspaceFolder}/build"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "dependsOn": [
+        "CMake: Configure"
+      ],
+      "dependsOrder": "sequence",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Observer: PID",
+      "type": "shell",
+      "command": "pgrep",
+      "args": [
+        "-af",
+        "observer"
+      ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Observer: Run",
+      "type": "shell",
+      "command": "${workspaceFolder}/build/bin/observer",
+      "args": [
+        "-s",
+        "/root/miniob-test.sock",
+        "-f",
+        "${workspaceFolder}/etc/observer.ini"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Obclient: Run",
+      "type": "shell",
+      "command": "${workspaceFolder}/build/bin/obclient",
+      "args": [
+        "-s",
+        "/root/miniob-test.sock"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Test: All",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/test/case/miniob_test.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/test/case"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Test: All (Report Only)",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/test/case/miniob_test.py",
+        "--report-only"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/test/case"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Test: Basic",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/test/case/miniob_test.py",
+        "--test-cases=basic"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/test/case"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Test: Case",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/test/case/miniob_test.py",
+        "--test-cases=${input:miniobTestCase}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/test/case"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    },
+    {
+      "label": "Test: Case (Report Only)",
+      "type": "shell",
+      "command": "python3",
+      "args": [
+        "${workspaceFolder}/test/case/miniob_test.py",
+        "--test-cases=${input:miniobTestCase}",
+        "--report-only"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/test/case"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": false
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "miniobTestCase",
+      "type": "promptString",
+      "description": "Please enter the test case name (e.g., basic, index, join, etc.)",
+      "default": "basic"
+    }
+  ]
+}
