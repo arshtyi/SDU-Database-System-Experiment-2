@@ -71,13 +71,18 @@
 #set par(justify: true, first-line-indent: (amount: 2em, all: true))
 #set raw(syntaxes: "highlight/PowerShell.sublime-syntax")
 #show raw: set text(font: ((name: font.mono, covers: "latin-in-cjk"), font.cjk))
+#show raw.where(block: false): box.with(
+    fill: luma(240),
+    inset: (x: 0.3em, y: 0em),
+    outset: (x: 0em, y: 0.3em),
+    radius: 0.2em,
+)
 #show link: it => text(fill: palette.link, style: "italic", underline(evade: false, it))
 #show ref: set text(fill: palette.ref)
 #set cite(style: "ieee")
 #set footnote(numbering: "[1]")
 #set list(indent: 6pt, marker: sym.bullet.tri)
 #set enum(indent: 6pt, numbering: numbly(n => emph(strong(numbering("1.", n)))))
-#set-unit(fraction: "power")
 
 #{
     show heading: it => align(center, text(size: 18pt, tracking: 0.1em, weight: "bold", it))
@@ -128,13 +133,11 @@
         rows
     }
     set table.cell(align: center + horizon)
-    // align(center)[
-    //     #table(
-    //         columns: 3,
-    //         [#sym.hash], [branch], [hash],
-    //         .._commit-hash-table-rows(),
-    //     )
-    // ]
+    align(center, table(
+        columns: 3,
+        sym.hash, [branch], [hash],
+        .._commit-hash-table-rows(),
+    ))
 }
 
 // Let line numbers be more visible and add highlight for changed lines
@@ -333,13 +336,13 @@
 #zebraw(raw(read(".vscode/tasks.json"), block: true, lang: "json"))
 上述Tasks配置了以下几个任务:
 - CMake:
-    + Configure: 配置CMake.
-    + Build: 构建项目,依赖于Configure.
+    + `Configure`: 配置CMake.
+    + `Build`: 构建项目,依赖于Configure.
 - Observer:
-    + PID: 查看Observer进程PID.
-    + Run: 启动Observer服务端.
+    + `PID`: 查看Observer进程PID.
+    + `Run`: 启动Observer服务端.
 - Obclient:
-    + Run: 启动Obclient客户端.
+    + `Run`: 启动Obclient客户端.
 - Test:
     #enum.item(0)[如果想要通过Tasks运行,作如下修改:#zebraw(
             header: [test/case/miniob_test.py],
@@ -353,30 +356,30 @@
             ```,
         )
     ]
-    + All: 运行测试脚本,依赖于Build.
-    + All (Report Only): 仅运行测试脚本并输出报告.
-    + Basic: 运行测试脚本的basic测试用例,依赖于Build.
-    + Case: 运行测试脚本的指定测试用例,依赖于Build.
-    + Case (Report Only): 仅运行测试脚本的指定测试用例并输出报告.
+    + `All`: 运行测试脚本,依赖于Build.
+    + `All (Report Only)`: 仅运行测试脚本并输出报告.
+    + `Basic`: 运行测试脚本的basic测试用例,依赖于Build.
+    + `Case`: 运行测试脚本的指定测试用例,依赖于Build.
+    + `Case (Report Only)`: 仅运行测试脚本的指定测试用例并输出报告.
 === Debug
 在VSCode中配置Debug功能:
 #zebraw(raw(read(".vscode/launch.json"), block: true, lang: "json"))
-上述Debug配置了一个调试配置"(gdb) Attach to observer",可以通过输入Observer进程的PID来附加到Observer进程进行调试.
+上述Debug配置了一个调试配置`(gdb) Attach to observer`,可以通过输入Observer进程的PID来附加到Observer进程进行调试.
 == Build
-运行CMake: Build构建项目(可以手动先运行CMake: Configure):
+运行`CMake: Build`构建项目(可以手动先运行`CMake: Configure`):
 #figure(image("fig/1/build_result/1.png"), caption: [实验1构建结果])<fig:exp1_build_result_1>
 == Run
-运行Observer: Run启动服务端:
+运行`Observer: Run`启动服务端:
 #figure(image("fig/1/run_result/1.png"), caption: [实验1服务端运行结果])<fig:exp1_run_result_2>
-运行Obclient: Run启动客户端:
+运行`Obclient: Run`启动客户端:
 #figure(image("fig/1/run_result/2.png"), caption: [实验1客户端运行结果])<fig:exp1_run_result_3>
 == Test
 使用内置测试集:
 #zebraw-test("basic")
 == Debug
-首先运行Observer: PID获得Observer进程的PID:
+首先运行`Observer: PID`获得Observer进程的PID:
 #figure(image("fig/1/run_result/3.png"), caption: [实验1 Observer PID])<fig:exp1_run_result_4>
-选择"(gdb) Attach to observer"并输入`PID`即可进入调试状态(在`src/observer/net/plain_communicator.cpp`的```cpp PlainCommunicator::read_event(SessionEvent *&event)```打断点)并测试```sql show tables;```:
+选择`(gdb) Attach to observer`并输入`PID`即可进入调试状态(在```sh src/observer/net/plain_communicator.cpp```的```cpp PlainCommunicator::read_event(SessionEvent *&event)```打断点)并测试```sql show tables;```:
 #figure(image("fig/1/debug_result/1.png"), caption: [实验1调试结果])<fig:exp1_debug_result_1>
 == 总结
 @exp1 主要完成了从拉取源代码到构建运行数据库系统的全过程,熟悉了Docker和VSCode的使用,并且通过测试验证了基本功能的正确性.
@@ -386,8 +389,7 @@
 - 实验内容:
     + 实现删除表功能,包括删除元数据文件,数据文件,LOB文件及索引等.
     + 增加日期类型,支持日期的存储,比较,字符串化,解析校验,隐式类型转换等功能.
-    + 实现更新行数据功能,支持根据条件更新表中的数据.
-    + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800006&subQuestionName=drop-table", "题目3"),#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800005&subQuestionName=date", "题目2")和#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800007&subQuestionName=update", "题目4").
+    + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800006&subQuestionName=drop-table", "题目3")和#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800005&subQuestionName=date", "题目2").
 == Drop Table
 === 原理
 删除表属于DDL操作,核心目标是把表从数据库目录中彻底摘除.实现时需要先检查表是否存在,再关闭并移除表对象,最后删除元数据,数据文件,LOB文件以及相关索引文件,避免后续启动时仍能加载到残留表结构.
@@ -408,7 +410,7 @@
     zebraw-part-file("src/observer/sql/executor/command_executor.cpp")
 }
 === Build
-编译配置同@exp1, 直接运行CMake: Build即可.随后运行Observer: Run和Obclient: Run启动服务端和客户端.
+编译配置同@exp1, 直接运行`CMake: Build`即可.随后运行`Observer: Run`和`Obclient: Run`启动服务端和客户端.
 === Test
 使用内置测试集:
 #zebraw-test("primary-drop-table")
@@ -440,125 +442,131 @@ DATE类型需要同时满足存储紧凑,比较正确和输入校验明确.本�
     zebraw-part-file("src/observer/storage/common/codec.h")
 }
 === Build
-编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
+编译配置同@exp1, 直接运行`CMake: Build`即可.随后运行`Observer: Run`和`Obclient: Run`启动服务端和客户端.
 === Test
 使用内置测试集:
 #zebraw-test("primary-date")
 测试覆盖了合法日期,非法日期,闰年边界和字符串转换等场景,结果符合预期.
-== Update
-=== 原理
+== 总结
+@exp2 主要实现了删除表功能和DATE类型支持,理解了DDL对象清理流程以及新数据类型从解析,校验,编码到比较的完整接入方式.
+
+= Experiment 3 <exp3>
+- 基于@exp2.
+- 实验内容:
+    + 实现更新行数据功能,支持根据条件更新表中的数据.
+    + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800007&subQuestionName=update", "题目4").
+== 原理
 UPDATE可以看作"扫描满足条件的记录,计算新值,再写回记录"的流水线.语句层负责解析目标表,字段和值表达式,计划层把更新节点挂在查询子计划之后,物理算子逐条读取子算子输出的记录并调用表引擎和事务接口完成写回.
-=== 实现
+== 实现
 #{
-    let zebraw-part-file = zebraw-file.with(part: 3)
     [语句层支持:]
-    zebraw-part-file("src/observer/sql/stmt/update_stmt.h")
-    zebraw-part-file("src/observer/sql/stmt/update_stmt.cpp")
-    zebraw-part-file("src/observer/sql/stmt/stmt.cpp")
+    zebraw-file("src/observer/sql/stmt/update_stmt.h")
+    zebraw-file("src/observer/sql/stmt/update_stmt.cpp")
+    zebraw-file("src/observer/sql/stmt/stmt.cpp")
     [计划与执行算子:]
-    zebraw-part-file("src/observer/sql/operator/logical_operator.h")
-    zebraw-part-file("src/observer/sql/operator/logical_operator.cpp")
-    zebraw-part-file("src/observer/sql/operator/physical_operator.h")
-    zebraw-part-file("src/observer/sql/operator/physical_operator.cpp")
-    zebraw-part-file("src/observer/sql/operator/update_logical_operator.h")
-    zebraw-part-file("src/observer/sql/operator/update_logical_operator.cpp")
-    zebraw-part-file("src/observer/sql/operator/update_physical_operator.h")
-    zebraw-part-file("src/observer/sql/operator/update_physical_operator.cpp")
-    zebraw-part-file("src/observer/sql/optimizer/logical_plan_generator.h")
-    zebraw-part-file("src/observer/sql/optimizer/logical_plan_generator.cpp")
-    zebraw-part-file("src/observer/sql/optimizer/physical_plan_generator.h")
-    zebraw-part-file("src/observer/sql/optimizer/physical_plan_generator.cpp")
+    zebraw-file("src/observer/sql/operator/logical_operator.h")
+    zebraw-file("src/observer/sql/operator/logical_operator.cpp")
+    zebraw-file("src/observer/sql/operator/physical_operator.h")
+    zebraw-file("src/observer/sql/operator/physical_operator.cpp")
+    zebraw-file("src/observer/sql/operator/update_logical_operator.h")
+    zebraw-file("src/observer/sql/operator/update_logical_operator.cpp")
+    zebraw-file("src/observer/sql/operator/update_physical_operator.h")
+    zebraw-file("src/observer/sql/operator/update_physical_operator.cpp")
+    zebraw-file("src/observer/sql/optimizer/logical_plan_generator.h")
+    zebraw-file("src/observer/sql/optimizer/logical_plan_generator.cpp")
+    zebraw-file("src/observer/sql/optimizer/physical_plan_generator.h")
+    zebraw-file("src/observer/sql/optimizer/physical_plan_generator.cpp")
     [表引擎与事务接口:]
-    zebraw-part-file("src/observer/storage/table/heap_table_engine.h")
-    zebraw-part-file("src/observer/storage/table/heap_table_engine.cpp")
-    zebraw-part-file("src/observer/storage/trx/mvcc_trx.h")
-    zebraw-part-file("src/observer/storage/trx/mvcc_trx.cpp")
-    zebraw-part-file("src/observer/storage/trx/vacuous_trx.h")
-    zebraw-part-file("src/observer/storage/trx/vacuous_trx.cpp")
+    zebraw-file("src/observer/storage/table/heap_table_engine.h")
+    zebraw-file("src/observer/storage/table/heap_table_engine.cpp")
+    zebraw-file("src/observer/storage/trx/mvcc_trx.h")
+    zebraw-file("src/observer/storage/trx/mvcc_trx.cpp")
+    zebraw-file("src/observer/storage/trx/vacuous_trx.h")
+    zebraw-file("src/observer/storage/trx/vacuous_trx.cpp")
 }
-=== Build
-编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
-=== Test
+== Build
+编译配置同@exp1, 直接运行`CMake: Build`即可.随后运行`Observer: Run`和`Obclient: Run`启动服务端和客户端.
+== Test
 使用内置测试集:
 #zebraw-test("primary-update")
 测试覆盖了条件更新,类型检查,多行写回和空匹配等场景,结果符合预期.
 == 总结
-@exp2 主要实现了删除表功能,DATE类型支持和更新行数据功能,理解了DDL对象清理流程以及新数据类型从解析,校验,编码到比较的完整接入方式和UPDATE语句从语法树,逻辑计划,物理算子到表引擎写回的DML执行链路.
+@exp3 主要实现了更新行数据功能,理解了UPDATE从语法树,逻辑计划,物理算子到表引擎写回的DML执行链路.
 
-// = Experiment 4 <exp4>
-// - 基于@exp3.
-// - 实验内容:
-//     + 实现多表连接查询功能,支持使用JOIN关键字连接多张表进行查询.
-//     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800010&subQuestionName=join-tables", "题目7").
-// == 原理
-// JOIN语法本质上是对`FROM`子句中多表关系的显式描述.本实验主要补齐解析层支持,将`table join table on condition`转换为已有的多表查询结构,并把`ON`条件合并到查询条件中,后续执行仍可复用原有的笛卡尔积和谓词过滤流程.
-// == 实现
-// #{
-//     [类型转换支持#footnote[见@miniob-wiki #sym.hash 类型转换.]:]
-//     zebraw-file("src/observer/common/type/char_type.cpp")
-//     [`FROM`关系描述:]
-//     zebraw-file("src/observer/sql/parser/parse_defs.h")
-//     [词法与语法支持:]
-//     zebraw-file("src/observer/sql/parser/lex_sql.l")
-//     zebraw-file("src/observer/sql/parser/yacc_sql.y")
-// }
-// == Build
-// 编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
-// == Test
-// 使用内置测试集:
-// #zebraw-test("primary-join-tables")
-// 测试覆盖了JOIN语法解析,连接条件过滤和多表字段引用等场景,结果符合预期.
-// == 总结
-// @exp4 主要实现了基于JOIN的多表查询功能,理解了显式JOIN语法如何映射到已有多表查询框架和条件过滤流程.
+= Experiment 4 <exp4>
+- 基于@exp3.
+- 实验内容:
+    + 实现多表连接查询功能,支持使用JOIN关键字连接多张表进行查询.
+    + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800010&subQuestionName=join-tables", "题目7").
+== 原理
+JOIN语法本质上是对```sql FROM```子句中多表关系的显式描述.本实验主要补齐解析层支持,将```sql table join table on condition```转换为已有的多表查询结构,并把```sql ON```条件合并到查询条件中,后续执行仍可复用原有的笛卡尔积和谓词过滤流程.
+== 实现
+#{
+    [类型转换支持#footnote[见@miniob-wiki #sym.hash 类型转换.]:]
+    zebraw-file("src/observer/common/type/char_type.cpp")
+    [```sql FROM```关系描述:]
+    zebraw-file("src/observer/sql/parser/parse_defs.h")
+    [词法与语法支持:]
+    zebraw-file("src/observer/sql/parser/lex_sql.l")
+    zebraw-file("src/observer/sql/parser/yacc_sql.y")
+}
+== Build
+编译配置同@exp1, 直接运行`CMake: Build`即可.随后运行`Observer: Run`和`Obclient: Run`启动服务端和客户端.
+== Test
+使用内置测试集:
+#zebraw-test("primary-join-tables")
+测试覆盖了JOIN语法解析,连接条件过滤和多表字段引用等场景,结果符合预期.
+== 总结
+@exp4 主要实现了基于```sql JOIN```的多表查询功能,理解了显式```sql JOIN```语法如何映射到已有多表查询框架和条件过滤流程.
 
-// = Experiment 5 <exp5>
-// - 基于@exp4.
-// - 实验内容:
-//     + 实现大文本类型支持,增加TEXT数据类型用于存储大文本数据.
-//     + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800017&subQuestionName=text", "题目16").
-// == 原理
-// TEXT数据通常超过普通记录页中字段的固定长度限制,因此不能只按`char`字段内联保存.本实验采用溢出存储思路:记录中保存可定位大文本内容的引用信息,真正的大文本数据交给记录管理器和表引擎读写,从而兼顾记录格式稳定性和大字段容量.
-// == 实现
-// #{
-//     [语法支持:]
-//     zebraw-file("src/observer/sql/parser/lex_sql.l")
-//     zebraw-file("src/observer/sql/parser/yacc_sql.y")
-//     [类型系统支持:]
-//     zebraw-file("src/observer/common/type/attr_type.h")
-//     zebraw-file("src/observer/common/type/attr_type.cpp")
-//     zebraw-file("src/observer/common/type/char_type.h")
-//     zebraw-file("src/observer/common/type/char_type.cpp")
-//     zebraw-file("src/observer/common/type/data_type.cpp")
-//     zebraw-file("src/observer/common/value.h")
-//     zebraw-file("src/observer/common/value.cpp")
-//     [溢出存储实现:]
-//     zebraw-file("src/observer/storage/record/record_manager.h")
-//     zebraw-file("src/observer/storage/record/record_manager.cpp")
-//     [表引擎与更新路径:]
-//     zebraw-file("src/observer/storage/table/table_engine.h")
-//     zebraw-file("src/observer/storage/table/heap_table_engine.h")
-//     zebraw-file("src/observer/storage/table/heap_table_engine.cpp")
-//     zebraw-file("src/observer/storage/table/lsm_table_engine.h")
-//     zebraw-file("src/observer/storage/table/table.h")
-//     zebraw-file("src/observer/storage/table/table.cpp")
-//     zebraw-file("src/observer/sql/operator/update_physical_operator.cpp")
-//     [读取路径:]
-//     zebraw-file("src/observer/sql/expr/tuple.h")
-//     [兼容性调整:]
-//     zebraw-file("src/observer/sql/expr/expression.cpp")
-//     zebraw-file("src/observer/sql/executor/load_data_executor.cpp")
-//     zebraw-file("src/observer/storage/common/codec.h")
-//     [协议缓冲区调整#footnote[@zhihu-671981637, #link("https://github.com/oceanbase/miniob/pull/28", "miniob#28"), #link("https://github.com/oceanbase/miniob/pull/559", "miniob#559").]:]
-//     zebraw-file("src/observer/net/plain_communicator.cpp")
-// }
-// == Build
-// 编译配置同@exp1, 直接运行CMake: Build即可.接下来运行Observer: Run和Obclient: Run启动服务端和客户端.
-// == Test
-// 使用内置测试集:
-// #zebraw-test("primary-text")
-// 测试覆盖了TEXT建表,插入,查询,更新和较长文本传输等场景,结果符合预期.
-// == 总结
-// @exp5 主要实现了TEXT数据类型支持,理解了大字段从内联记录到溢出存储的设计取舍,并补齐了语法解析,类型系统,表接口和协议缓冲区等相关路径.
+= Experiment 5 <exp5>
+- 基于@exp4.
+- 实验内容:
+    + 实现大文本类型支持,增加TEXT数据类型用于存储大文本数据.
+    + 提测#link("https://open.oceanbase.com/train/TopicDetails?questionId=600004&subQesitonId=800017&subQuestionName=text", "题目16").
+== 原理
+TEXT数据通常超过普通记录页中字段的固定长度限制,因此不能只按`char`字段内联保存.采用溢出存储思路:记录中保存可定位大文本内容的引用信息,真正的大文本数据交给记录管理器和表引擎读写,从而兼顾记录格式稳定性和大字段容量.
+== 实现
+#{
+    [语法支持:]
+    zebraw-file("src/observer/sql/parser/lex_sql.l")
+    zebraw-file("src/observer/sql/parser/yacc_sql.y")
+    [类型系统支持:]
+    zebraw-file("src/observer/common/type/attr_type.h")
+    zebraw-file("src/observer/common/type/attr_type.cpp")
+    zebraw-file("src/observer/common/type/char_type.h")
+    zebraw-file("src/observer/common/type/char_type.cpp")
+    zebraw-file("src/observer/common/type/data_type.cpp")
+    zebraw-file("src/observer/common/value.h")
+    zebraw-file("src/observer/common/value.cpp")
+    [溢出存储实现:]
+    zebraw-file("src/observer/storage/record/record_manager.h")
+    zebraw-file("src/observer/storage/record/record_manager.cpp")
+    [表引擎与更新路径:]
+    zebraw-file("src/observer/storage/table/table_engine.h")
+    zebraw-file("src/observer/storage/table/heap_table_engine.h")
+    zebraw-file("src/observer/storage/table/heap_table_engine.cpp")
+    zebraw-file("src/observer/storage/table/lsm_table_engine.h")
+    zebraw-file("src/observer/storage/table/table.h")
+    zebraw-file("src/observer/storage/table/table.cpp")
+    zebraw-file("src/observer/sql/operator/update_physical_operator.cpp")
+    [读取路径:]
+    zebraw-file("src/observer/sql/expr/tuple.h")
+    [兼容性调整:]
+    zebraw-file("src/observer/sql/expr/expression.cpp")
+    zebraw-file("src/observer/sql/executor/load_data_executor.cpp")
+    zebraw-file("src/observer/storage/common/codec.h")
+    [协议缓冲区调整#footnote[@zhihu-671981637, #link("https://github.com/oceanbase/miniob/pull/28", "miniob#28"), #link("https://github.com/oceanbase/miniob/pull/559", "miniob#559").]:]
+    zebraw-file("src/observer/net/plain_communicator.cpp")
+}
+== Build
+编译配置同@exp1, 直接运行`CMake: Build`即可.接下来运行`Observer: Run`和`Obclient: Run`启动服务端和客户端.
+== Test
+使用内置测试集:
+#zebraw-test("primary-text")
+测试覆盖了TEXT建表,插入,查询,更新和较长文本传输等场景,结果符合预期.
+== 总结
+@exp5 主要实现了TEXT数据类型支持,理解了大字段从内联记录到溢出存储的设计取舍,并补齐了语法解析,类型系统,表接口和协议缓冲区等相关路径.
 
 #{
     pagebreak()

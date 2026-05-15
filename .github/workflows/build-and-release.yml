@@ -1,11 +1,6 @@
 name: Build Report PDF
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "report/**"
   workflow_dispatch:
     inputs:
       release:
